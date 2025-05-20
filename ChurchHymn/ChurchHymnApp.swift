@@ -10,6 +10,8 @@ import SwiftData
 
 @main
 struct ChurchHymnApp: App {
+    @StateObject private var viewModel = HymnViewModel()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -26,6 +28,7 @@ struct ChurchHymnApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(viewModel)
         }
         .modelContainer(sharedModelContainer)
     }
