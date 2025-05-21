@@ -11,13 +11,29 @@ struct PresenterView: View {
     @State private var index: Int = 0
     @State private var monitor: Any?
 
+    /// Sequence for presentation: if a chorus exists, repeat it after each verse;
+    /// otherwise present each verse block in order.
+    private var presentationParts: [(label: String?, lines: [String])] {
+        let allBlocks = hymn.parts
+        // Extract chorus blocks
+        let choruses = allBlocks.filter { $0.label != nil }
+        let verses = allBlocks.filter { $0.label == nil }
+        if let chorusPart = choruses.first {
+            // Interleave verse and chorus
+            return verses.flatMap { [$0, chorusPart] }
+        } else {
+            // No chorus: just show each verse block
+            return verses
+        }
+    }
+    
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: 24) {
                 Text(hymn.title)
                     .font(.title)
                     .foregroundColor(.white)
-                Text(hymn.parts[index].lines.joined(separator: "\n"))
+                Text(presentationParts[index].lines.joined(separator: "\n"))
                     .font(.system(size: 80))
                     .minimumScaleFactor(0.1)
                     .multilineTextAlignment(.center)
@@ -31,8 +47,13 @@ struct PresenterView: View {
         }
     }
 
-    private func advance() { index = (index + 1) % hymn.parts.count }
-    private func retreat() { index = (index - 1 + hymn.parts.count) % hymn.parts.count }
+    private func advance() {
+        index = (index + 1) % presentationParts.count
+    }
+    
+    private func retreat() {
+        index = (index - 1 + presentationParts.count) % presentationParts.count
+    }
 
     private func startMonitor() {
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
