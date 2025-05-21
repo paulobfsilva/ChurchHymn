@@ -30,15 +30,36 @@ struct PresenterView: View {
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: 24) {
+                // Title at top
                 Text(hymn.title)
-                    .font(.title)
+                    .font(.system(size: 25, weight: .bold))
                     .foregroundColor(.white)
+                    .padding(.top, 20)
+                Spacer()
+                // Lyrics block
                 Text(presentationParts[index].lines.joined(separator: "\n"))
                     .font(.system(size: 80))
                     .minimumScaleFactor(0.1)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.white)
                     .padding()
+                                                           Spacer()
+                // Label or verse number at bottom right
+                HStack {
+                    Spacer()
+                    Group {
+                        if let label = presentationParts[index].label {
+                            Text(label)
+                        } else {
+                            // Calculate verse number
+                            let verseCount = presentationParts[0...index].filter { $0.label == nil }.count
+                            Text("Verse \(verseCount)")
+                        }
+                    }
+                    .font(.system(size: 15))
+                    .foregroundColor(.white)
+                    .padding([.bottom, .trailing], 20)
+                }
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .background(Color.black)
