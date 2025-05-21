@@ -8,7 +8,6 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - Model
 @Model
 class Hymn: Identifiable {
     @Attribute(.unique) var id: UUID
@@ -22,15 +21,17 @@ class Hymn: Identifiable {
     }
 
     /// Split into labeled blocks
+        /// Split into labeled blocks
     var parts: [(label: String?, lines: [String])] {
-        lyrics
+        return lyrics
             .components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .map { block in
                 let lines = block.components(separatedBy: .newlines)
-                if lines.allSatisfy({ $0.hasPrefix("C:") }) {
-                    let content = lines.map { String($0.dropFirst(2)).trimmingCharacters(in: .whitespaces) }
+                // If a block starts with "CHORUS" (case-insensitive), treat as chorus
+                if let first = lines.first, first.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == "CHORUS" {
+                    let content = Array(lines.dropFirst())
                     return (label: "Chorus", lines: content)
                 } else {
                     return (label: nil, lines: lines)
