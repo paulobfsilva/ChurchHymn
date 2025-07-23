@@ -13,11 +13,15 @@ class Hymn: Identifiable {
     @Attribute(.unique) var id: UUID
     var title: String
     var lyrics: String  // raw text with blocks separated by empty lines
+    var musicalKey: String     // e.g. "G Major"
+    var copyright: String      // e.g. "© 2025 My Church"
 
-    init(id: UUID = UUID(), title: String, lyrics: String) {
+    init(id: UUID = UUID(), title: String, lyrics: String, musicalKey: String, copyright: String) {
         self.id = id
         self.title = title
         self.lyrics = lyrics
+        self.musicalKey = musicalKey
+        self.copyright = copyright
     }
 
     /// Split into labeled blocks

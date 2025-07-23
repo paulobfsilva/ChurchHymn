@@ -8,50 +8,32 @@ import SwiftUI
 import SwiftData
 
 struct HymnEditView: View {
-    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Bindable var hymn: Hymn
-    private let isNew: Bool
-    @State private var title: String
-    @State private var lyrics: String
+    var onSave: ((Hymn) -> Void)?
 
-    /// Edit existing
-    init(hymn: Hymn) {
+    init(hymn: Hymn, onSave: ((Hymn) -> Void)? = nil) {
         self._hymn = Bindable(wrappedValue: hymn)
-        self._title = State(initialValue: hymn.title)
-        self._lyrics = State(initialValue: hymn.lyrics)
-        self.isNew = false
-    }
-
-    /// Add new
-    init() {
-        let new = Hymn(title: "", lyrics: "")
-        self._hymn = Bindable(wrappedValue: new)
-        self._title = State(initialValue: "")
-        self._lyrics = State(initialValue: "")
-        self.isNew = true
+        self.onSave = onSave
     }
 
     var body: some View {
         VStack(spacing: 16) {
-            TextField("Title", text: $title)
-            TextEditor(text: $lyrics)
+            TextField("Title", text: $hymn.title)
+            TextField("Key (e.g. G Major)", text: $hymn.musicalKey)
+            TextField("Copyright (e.g. © 2025 Church)", text: $hymn.copyright)
+            TextEditor(text: $hymn.lyrics)
                 .border(Color.gray)
             HStack {
                 Button("Cancel") {
-                    if isNew { /* nothing */ }
                     dismiss()
                 }
                 Spacer()
                 Button("Save") {
-                    hymn.title = title
-                    hymn.lyrics = lyrics
-                    if isNew {
-                        context.insert(hymn)
-                    }
+                    onSave?(hymn)
                     dismiss()
                 }
-                .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(hymn.title.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
         .padding()

@@ -7,29 +7,37 @@ struct ContentView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Hymn.title, order: .forward) private var hymns: [Hymn]
     @State private var selected: Hymn? = nil
-    @State private var showingAdd = false
+    @State private var newHymn: Hymn? = nil
     @State private var showingEdit = false
+    @State private var editHymn: Hymn? = nil
     @State private var importPicker = false
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selected) {
-                ForEach(hymns, id: \.id) { hymn in
-                    Text(hymn.title)
-                        .tag(hymn)
-                }
-                .onDelete(perform: deleteHymns)
+            List(hymns, id: \.id, selection: $selected) { hymn in
+                Text(hymn.title)
+                    .tag(hymn)
             }
             .frame(minWidth: 200)
             .toolbar {
                 // Sidebar actions
                 ToolbarItemGroup(placement: .navigation) {
-                    Button("Add") { showingAdd = true }
+                    Button("Add") {
+                        let hymn = Hymn(title: "", lyrics: "", musicalKey: "", copyright: "")
+                        context.insert(hymn)
+                        try? context.save()
+                        newHymn = hymn
+                        selected = hymn
+                        showingEdit = true
+                    }
                     Button("Import") { importPicker = true }
                 }
                 // Detail actions
                 ToolbarItemGroup(placement: .primaryAction) {
-                    Button("Edit") { showingEdit = true }
+                    Button("Edit") {
+                        editHymn = selected
+                        showingEdit = true
+                    }
                         .disabled(selected == nil)
                     Button("Present") { if let hymn = selected { present(hymn) } }
                         .disabled(selected == nil)
@@ -40,9 +48,15 @@ struct ContentView: View {
                 allowedContentTypes: [UTType.plainText],
                 allowsMultipleSelection: false
             ) { result in
-                switch result {
-                case .success(let url): importFromFile(url.first!)
-                case .failure(let error): print(error)
+                if case let .success(url) = result,
+                   let text = try? String(contentsOf: url.first!) {
+                    let lines = text.components(separatedBy: .newlines)
+                    let titleLine = lines.first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
+                    let body = text.dropFirst(titleLine.count)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let newHymn = Hymn(title: titleLine, lyrics: body, musicalKey: "", copyright: "")
+                    context.insert(newHymn)
+                    try? context.save()
                 }
             }
         } detail: {
@@ -53,13 +67,8 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .sheet(isPresented: $showingAdd) {
-            HymnEditView()
-        }
         .sheet(isPresented: $showingEdit) {
-            if let hymn = selected {
-                HymnEditView(hymn: hymn)
-            }
+            if let hymn = selected { HymnEditView(hymn: hymn) }
         }
     }
 
@@ -79,8 +88,9 @@ struct ContentView: View {
             .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
         let body = text.dropFirst(titleLine.count)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let newHymn = Hymn(title: titleLine, lyrics: body)
+        let newHymn = Hymn(title: titleLine, lyrics: body, musicalKey: "", copyright: "")
         context.insert(newHymn)
+        try? context.save()
     }
 
     // MARK: - Presenter

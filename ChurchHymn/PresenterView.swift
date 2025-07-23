@@ -43,23 +43,32 @@ struct PresenterView: View {
                     .multilineTextAlignment(.center)
                     .foregroundColor(.white)
                     .padding()
-                                                           Spacer()
+                Spacer()
                 // Label or verse number at bottom right
                 HStack {
+                    // Copyright bottom-left
+                    Text(hymn.copyright)
+                        .font(.system(size: 15))
+                        .foregroundColor(.white)
                     Spacer()
+                    // Key bottom-center
+                    Text(hymn.musicalKey)
+                        .font(.system(size: 15))
+                        .foregroundColor(.white)
+                    Spacer().frame(width: 40)
+                    // Verse/Chorus bottom-right
                     Group {
                         if let label = presentationParts[index].label {
                             Text(label)
                         } else {
-                            // Calculate verse number
-                            let verseCount = presentationParts[0...index].filter { $0.label == nil }.count
-                            Text("Verse \(verseCount)")
+                            let verseNumber = presentationParts[0...index].filter { $0.label == nil }.count
+                            Text("Verse \(verseNumber)")
                         }
                     }
                     .font(.system(size: 15))
                     .foregroundColor(.white)
-                    .padding([.bottom, .trailing], 20)
                 }
+                .padding([.bottom, .horizontal], 20)
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .background(Color.black)
@@ -67,7 +76,7 @@ struct PresenterView: View {
             .onDisappear(perform: stopMonitor)
         }
     }
-
+    
     private func advance() {
         index = (index + 1) % presentationParts.count
     }
@@ -75,12 +84,17 @@ struct PresenterView: View {
     private func retreat() {
         index = (index - 1 + presentationParts.count) % presentationParts.count
     }
-
+    
     private func startMonitor() {
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             switch event.keyCode {
-            case 49, 36, 124, 125: advance()
-            case 123, 126: retreat()
+            case 49, 36, 124, 125: advance() // Space, Return, Right, Down
+            case 123, 126: retreat() // Left, Up
+            case 53: // ESC key
+                if let window = presenterWindow {
+                    window.close()
+                }
+                return nil
             default: return event
             }
             return nil
