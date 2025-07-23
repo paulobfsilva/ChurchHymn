@@ -23,7 +23,7 @@ struct ContentView: View {
                 // Sidebar actions
                 ToolbarItemGroup(placement: .navigation) {
                     Button("Add") {
-                        let hymn = Hymn(title: "", lyrics: "", musicalKey: "", copyright: "")
+                        let hymn = Hymn(title: "")
                         context.insert(hymn)
                         try? context.save()
                         newHymn = hymn
@@ -54,7 +54,7 @@ struct ContentView: View {
                     let titleLine = lines.first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
                     let body = text.dropFirst(titleLine.count)
                         .trimmingCharacters(in: .whitespacesAndNewlines)
-                    let newHymn = Hymn(title: titleLine, lyrics: body, musicalKey: "", copyright: "")
+                    let newHymn = Hymn(title: titleLine, lyrics: body)
                     context.insert(newHymn)
                     try? context.save()
                 }
@@ -88,7 +88,7 @@ struct ContentView: View {
             .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
         let body = text.dropFirst(titleLine.count)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let newHymn = Hymn(title: titleLine, lyrics: body, musicalKey: "", copyright: "")
+        let newHymn = Hymn(title: titleLine, lyrics: body)
         context.insert(newHymn)
         try? context.save()
     }

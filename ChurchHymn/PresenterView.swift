@@ -47,12 +47,12 @@ struct PresenterView: View {
                 // Label or verse number at bottom right
                 HStack {
                     // Copyright bottom-left
-                    Text(hymn.copyright)
+                    Text(hymn.copyright ?? "")
                         .font(.system(size: 15))
                         .foregroundColor(.white)
                     Spacer()
                     // Key bottom-center
-                    Text(hymn.musicalKey)
+                    Text(hymn.musicalKey ?? "")
                         .font(.system(size: 15))
                         .foregroundColor(.white)
                     Spacer().frame(width: 40)

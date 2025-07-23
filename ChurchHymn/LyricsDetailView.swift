@@ -26,10 +26,10 @@ struct LyricsDetailView: View {
             Divider()
             // Footer with copyright and key
             HStack {
-                Text(hymn.copyright)
+                Text(hymn.copyright ?? "")
                     .font(.caption)
                 Spacer()
-                Text(hymn.musicalKey)
+                Text(hymn.musicalKey ?? "")
                     .font(.caption)
                 Spacer().frame(width: 20)
             }
