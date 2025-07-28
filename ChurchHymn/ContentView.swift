@@ -111,6 +111,8 @@ enum ImportError: LocalizedError, Identifiable {
     }
 }
 
+
+
 // MARK: - Duplicate Handling
 struct DuplicateHymn: Identifiable {
     let id = UUID()
@@ -162,15 +164,16 @@ struct ContentView: View {
     @State private var importSuccessMessage: String?
     @State private var showingSuccessAlert = false
     
-    // Duplicate handling states
-    @State private var duplicateHymns: [DuplicateHymn] = []
-    @State private var showingDuplicateAlert = false
-    @State private var duplicateResolution: DuplicateResolution = .skip
-    @State private var pendingValidHymns: [Hymn] = []
-    @State private var pendingErrors: [String] = []
+
     
     // Store the current import type to avoid timing issues
     @State private var currentImportType: ImportType?
+    
+    // Import preview states
+    @State private var importPreview: ImportPreview?
+    @State private var showingImportPreview = false
+    @State private var selectedHymnsForImport: Set<UUID> = []
+    @State private var duplicateResolution: DuplicateResolution = .skip
 
     var body: some View {
         NavigationSplitView {
@@ -254,25 +257,7 @@ struct ContentView: View {
             } message: {
                 Text(importSuccessMessage ?? "Hymn imported successfully.")
             }
-            .alert("Duplicate Hymns Found", isPresented: $showingDuplicateAlert) {
-                Button("Skip All") {
-                    duplicateResolution = .skip
-                    processImportWithDuplicates()
-                }
-                Button("Merge All") {
-                    duplicateResolution = .merge
-                    processImportWithDuplicates()
-                }
-                Button("Replace All") {
-                    duplicateResolution = .replace
-                    processImportWithDuplicates()
-                }
-                Button("Cancel", role: .cancel) {
-                    duplicateHymns.removeAll()
-                }
-            } message: {
-                Text("Found \(duplicateHymns.count) duplicate hymn\(duplicateHymns.count == 1 ? "" : "s"). Choose how to handle them.")
-            }
+
         } detail: {
             if let hymn = selected {
                 LyricsDetailView(hymn: hymn)
@@ -283,6 +268,17 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingEdit) {
             if let hymn = selected { HymnEditView(hymn: hymn) }
+        }
+        .sheet(isPresented: $showingImportPreview) {
+            if let preview = importPreview {
+                ImportPreviewView(
+                    preview: preview,
+                    selectedHymns: $selectedHymnsForImport,
+                    duplicateResolution: $duplicateResolution,
+                    onConfirm: confirmImport,
+                    onCancel: cancelImport
+                )
+            }
         }
     }
 
@@ -377,51 +373,81 @@ struct ContentView: View {
         currentImportType = nil
     }
     
-    private func showError(_ error: ImportError) {
-        importError = error
-        showingErrorAlert = true
-    }
+    // MARK: - Import Preview Functions
     
-    private func showSuccess(_ message: String) {
-        importSuccessMessage = message
-        showingSuccessAlert = true
-    }
-    
-    // MARK: - Duplicate Processing
-    
-    private func processImportWithDuplicates() {
-        var allValidHymns = pendingValidHymns
-        var allErrors = pendingErrors
+    private func confirmImport() {
+        guard let preview = importPreview else { return }
         
-        switch duplicateResolution {
-        case .skip:
-            // Skip duplicates, only import new hymns
-            break
-            
-        case .merge:
-            // Merge new data with existing hymns
-            for duplicate in duplicateHymns {
-                mergeHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
-            }
-            
-        case .replace:
-            // Replace existing hymns with new data
-            for duplicate in duplicateHymns {
-                replaceHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
+        // Get selected hymns
+        let selectedValidHymns = preview.hymns.filter { selectedHymnsForImport.contains($0.id) }
+        let selectedDuplicateHymns = preview.duplicates.filter { selectedHymnsForImport.contains($0.id) }
+        
+        // Convert back to Hymn objects for processing
+        var hymnsToImport: [Hymn] = []
+        var duplicatesToProcess: [DuplicateHymn] = []
+        
+        // Process valid hymns
+        for previewHymn in selectedValidHymns {
+            let hymn = Hymn(
+                title: previewHymn.title,
+                lyrics: previewHymn.lyrics,
+                musicalKey: previewHymn.musicalKey,
+                copyright: previewHymn.copyright,
+                author: previewHymn.author,
+                tags: previewHymn.tags,
+                notes: previewHymn.notes
+            )
+            hymnsToImport.append(hymn)
+        }
+        
+        // Process duplicates
+        for previewHymn in selectedDuplicateHymns {
+            if let existingHymn = previewHymn.existingHymn {
+                let newHymn = Hymn(
+                    title: previewHymn.title,
+                    lyrics: previewHymn.lyrics,
+                    musicalKey: previewHymn.musicalKey,
+                    copyright: previewHymn.copyright,
+                    author: previewHymn.author,
+                    tags: previewHymn.tags,
+                    notes: previewHymn.notes
+                )
+                duplicatesToProcess.append(DuplicateHymn(existing: existingHymn, new: newHymn))
             }
         }
         
-        // Process all valid hymns
-        processImportResults(validHymns: allValidHymns, errors: allErrors)
+        // Process the import
+        processFinalImport(validHymns: hymnsToImport, duplicates: duplicatesToProcess, errors: preview.errors)
         
-        // Clear pending data
-        pendingValidHymns.removeAll()
-        pendingErrors.removeAll()
-        duplicateHymns.removeAll()
+        // Clear preview state
+        importPreview = nil
+        selectedHymnsForImport.removeAll()
     }
     
-    private func processImportResults(validHymns: [Hymn], errors: [String]) {
+    private func cancelImport() {
+        importPreview = nil
+        selectedHymnsForImport.removeAll()
+    }
+    
+    private func processFinalImport(validHymns: [Hymn], duplicates: [DuplicateHymn], errors: [String]) {
         do {
+            // Handle duplicates based on resolution
+            switch duplicateResolution {
+            case .skip:
+                // Skip duplicates, only import new hymns
+                break
+            case .merge:
+                // Merge new data with existing hymns
+                for duplicate in duplicates {
+                    mergeHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
+                }
+            case .replace:
+                // Replace existing hymns with new data
+                for duplicate in duplicates {
+                    replaceHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
+                }
+            }
+            
             // Insert all valid hymns
             for hymn in validHymns {
                 context.insert(hymn)
@@ -432,8 +458,8 @@ struct ContentView: View {
             // Generate success message
             var message = "Successfully imported \(validHymns.count) hymn\(validHymns.count == 1 ? "" : "s")"
             
-            if !duplicateHymns.isEmpty {
-                let duplicateCount = duplicateHymns.count
+            if !duplicates.isEmpty {
+                let duplicateCount = duplicates.count
                 switch duplicateResolution {
                 case .skip:
                     message += ". Skipped \(duplicateCount) duplicate\(duplicateCount == 1 ? "" : "s")"
@@ -454,6 +480,18 @@ struct ContentView: View {
             showError(.unknown("Failed to save imported hymns: \(error.localizedDescription)"))
         }
     }
+    
+    private func showError(_ error: ImportError) {
+        importError = error
+        showingErrorAlert = true
+    }
+    
+    private func showSuccess(_ message: String) {
+        importSuccessMessage = message
+        showingSuccessAlert = true
+    }
+    
+
     
     private func mergeHymnData(existing: Hymn, new: Hymn) {
         // Merge new data into existing hymn, preserving existing data when new data is empty
@@ -543,16 +581,28 @@ struct ContentView: View {
                 return
             }
             
+            // Create preview data
+            var validHymns: [ImportPreviewHymn] = []
+            var duplicateHymns: [ImportPreviewHymn] = []
+            var errors: [String] = []
+            
             // Check for duplicate titles
             if let existingHymn = hymns.first(where: { $0.title.lowercased() == hymn.title.lowercased() }) {
-                duplicateHymns = [DuplicateHymn(existing: existingHymn, new: hymn)]
-                showingDuplicateAlert = true
-                return
+                duplicateHymns.append(ImportPreviewHymn(from: hymn, isDuplicate: true, existingHymn: existingHymn))
+            } else {
+                validHymns.append(ImportPreviewHymn(from: hymn))
             }
             
-            context.insert(hymn)
-            try context.save()
-            showSuccess("Successfully imported '\(hymn.title)'")
+            // Create preview and show it
+            let preview = ImportPreview(
+                hymns: validHymns,
+                duplicates: duplicateHymns,
+                errors: errors,
+                fileName: url.lastPathComponent
+            )
+            
+            importPreview = preview
+            showingImportPreview = true
             
         } catch let error as NSError {
             let specificError = getSpecificFileError(error)
@@ -580,9 +630,9 @@ struct ContentView: View {
                 return
             }
             
-            // Separate valid hymns and duplicates
-            var validHymns: [Hymn] = []
-            var duplicates: [DuplicateHymn] = []
+            // Create preview data
+            var validHymns: [ImportPreviewHymn] = []
+            var duplicateHymns: [ImportPreviewHymn] = []
             var errors: [String] = []
             
             for hymn in importedHymns {
@@ -594,24 +644,22 @@ struct ContentView: View {
                 
                 // Check for duplicates
                 if let existingHymn = hymns.first(where: { $0.title.lowercased() == hymn.title.lowercased() }) {
-                    duplicates.append(DuplicateHymn(existing: existingHymn, new: hymn))
+                    duplicateHymns.append(ImportPreviewHymn(from: hymn, isDuplicate: true, existingHymn: existingHymn))
                 } else {
-                    validHymns.append(hymn)
+                    validHymns.append(ImportPreviewHymn(from: hymn))
                 }
             }
             
-            // If we have duplicates, show the duplicate resolution dialog
-            if !duplicates.isEmpty {
-                duplicateHymns = duplicates
-                showingDuplicateAlert = true
-                // Store valid hymns for later processing
-                pendingValidHymns = validHymns
-                pendingErrors = errors
-                return
-            }
+            // Create preview and show it
+            let preview = ImportPreview(
+                hymns: validHymns,
+                duplicates: duplicateHymns,
+                errors: errors,
+                fileName: url.lastPathComponent
+            )
             
-            // No duplicates, process normally
-            processImportResults(validHymns: validHymns, errors: errors)
+            importPreview = preview
+            showingImportPreview = true
             
         } catch let error as NSError {
             let specificError = getSpecificFileError(error)
