@@ -34,10 +34,16 @@ struct HymnToolbar {
                     importType = .plainText
                     currentImportType = .plainText
                 }
-                Button("Import JSON") { 
-                    importType = .json
-                    currentImportType = .json
-                }
+                            Button("Import JSON") { 
+                importType = .json
+                currentImportType = .json
+            }
+            Button("Import Large JSON") { 
+                importType = .json
+                currentImportType = .json
+                // This will automatically use streaming for large files
+            }
+            .help("Use streaming for large JSON files (>10MB)")
                 Button("Export Selected") { 
                     if let hymn = selected {
                         selectedHymnsForExport = [hymn.id]
@@ -49,11 +55,18 @@ struct HymnToolbar {
                     showingExportSelection = true
                 }
                 .disabled(hymns.isEmpty)
-                Button("Export All") { 
-                    selectedHymnsForExport = Set(hymns.map { $0.id })
-                    showingExportSelection = true
-                }
-                .disabled(hymns.isEmpty)
+                            Button("Export All") { 
+                selectedHymnsForExport = Set(hymns.map { $0.id })
+                showingExportSelection = true
+            }
+            .disabled(hymns.isEmpty)
+            Button("Export Large Collection") { 
+                selectedHymnsForExport = Set(hymns.map { $0.id })
+                showingExportSelection = true
+                // This will automatically use streaming for large collections
+            }
+            .disabled(hymns.isEmpty)
+            .help("Use streaming for large collections (>1000 hymns)")
                 Divider()
                 Button(isMultiSelectMode ? "Exit Multi-Select" : "Multi-Select") {
                     isMultiSelectMode.toggle()

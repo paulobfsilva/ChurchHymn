@@ -10,14 +10,19 @@ class HymnOperations: ObservableObject {
     @Published var exportProgress: Double = 0.0
     @Published var progressMessage = ""
     
+    // Streaming operations
+    @Published var streamingOperations: HymnStreamingOperations
+    
     private var context: ModelContext
     
     init(context: ModelContext) {
         self.context = context
+        self.streamingOperations = HymnStreamingOperations(context: context)
     }
     
     func updateContext(_ newContext: ModelContext) {
         self.context = newContext
+        self.streamingOperations.updateContext(newContext)
     }
     
     // MARK: - Import Operations
@@ -369,6 +374,50 @@ class HymnOperations: ObservableObject {
                 onError(specificError)
             }
         }
+    }
+    
+    // MARK: - Streaming Operations
+    
+    func importLargeJSONStreaming(
+        from url: URL, 
+        hymns: [Hymn],
+        onComplete: @escaping (ImportPreview) -> Void,
+        onError: @escaping (ImportError) -> Void
+    ) {
+        streamingOperations.importLargeJSONStreaming(
+            from: url,
+            hymns: hymns,
+            onProgress: { progress in
+                // Update progress for UI
+                Task { @MainActor in
+                    self.importProgress = progress.percentage
+                    self.progressMessage = progress.currentPhase
+                }
+            },
+            onComplete: onComplete,
+            onError: onError
+        )
+    }
+    
+    func exportLargeJSONStreaming(
+        hymns: [Hymn],
+        to url: URL,
+        onComplete: @escaping () -> Void,
+        onError: @escaping (ImportError) -> Void
+    ) {
+        streamingOperations.exportLargeJSONStreaming(
+            hymns: hymns,
+            to: url,
+            onProgress: { progress in
+                // Update progress for UI
+                Task { @MainActor in
+                    self.exportProgress = progress.hymnsPercentage
+                    self.progressMessage = progress.currentPhase
+                }
+            },
+            onComplete: onComplete,
+            onError: onError
+        )
     }
     
     // MARK: - Error Handling

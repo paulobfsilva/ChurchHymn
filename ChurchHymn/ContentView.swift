@@ -221,6 +221,12 @@ struct ContentView: View {
                         progress: operations.isImporting ? operations.importProgress : operations.exportProgress,
                         message: operations.progressMessage
                     )
+                } else if operations.streamingOperations.isStreaming {
+                    StreamingProgressOverlay(
+                        isStreaming: operations.streamingOperations.isStreaming,
+                        progress: operations.streamingOperations.streamingProgress,
+                        message: operations.streamingOperations.streamingMessage
+                    )
                 }
             }
         )
@@ -356,17 +362,37 @@ struct ContentView: View {
                     }
                 )
             case .json:
-                operations.importBatchJSON(
-                    from: url,
-                    hymns: hymns,
-                    onComplete: { preview in
-                        importPreview = preview
-                        showingImportPreview = true
-                    },
-                    onError: { error in
-                        showError(error)
-                    }
-                )
+                // Check file size to determine if streaming is needed
+                let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+                let largeFileThreshold = 10 * 1024 * 1024 // 10MB
+                
+                if fileSize > largeFileThreshold {
+                    // Use streaming for large files
+                    operations.importLargeJSONStreaming(
+                        from: url,
+                        hymns: hymns,
+                        onComplete: { preview in
+                            importPreview = preview
+                            showingImportPreview = true
+                        },
+                        onError: { error in
+                            showError(error)
+                        }
+                    )
+                } else {
+                    // Use regular import for smaller files
+                    operations.importBatchJSON(
+                        from: url,
+                        hymns: hymns,
+                        onComplete: { preview in
+                            importPreview = preview
+                            showingImportPreview = true
+                        },
+                        onError: { error in
+                            showError(error)
+                        }
+                    )
+                }
             }
             
         case .failure(let error):
@@ -404,23 +430,49 @@ struct ContentView: View {
             }
         case .multipleJSON:
             let hymnsToExport = hymns.filter { selectedHymnsForExport.contains($0.id) }
-            operations.exportBatchJSON(
-                hymnsToExport,
-                to: url,
-                onComplete: { },
-                onError: { error in
-                    showError(error)
-                }
-            )
+            let largeCollectionThreshold = 1000 // Use streaming for collections > 1000 hymns
+            
+            if hymnsToExport.count > largeCollectionThreshold {
+                operations.exportLargeJSONStreaming(
+                    hymns: hymnsToExport,
+                    to: url,
+                    onComplete: { },
+                    onError: { error in
+                        showError(error)
+                    }
+                )
+            } else {
+                operations.exportBatchJSON(
+                    hymnsToExport,
+                    to: url,
+                    onComplete: { },
+                    onError: { error in
+                        showError(error)
+                    }
+                )
+            }
         case .batchJSON:
-            operations.exportBatchJSON(
-                hymns,
-                to: url,
-                onComplete: { },
-                onError: { error in
-                    showError(error)
-                }
-            )
+            let largeCollectionThreshold = 1000 // Use streaming for collections > 1000 hymns
+            
+            if hymns.count > largeCollectionThreshold {
+                operations.exportLargeJSONStreaming(
+                    hymns: hymns,
+                    to: url,
+                    onComplete: { },
+                    onError: { error in
+                        showError(error)
+                    }
+                )
+            } else {
+                operations.exportBatchJSON(
+                    hymns,
+                    to: url,
+                    onComplete: { },
+                    onError: { error in
+                        showError(error)
+                    }
+                )
+            }
         }
     }
     
