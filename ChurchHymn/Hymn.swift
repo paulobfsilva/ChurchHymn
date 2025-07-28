@@ -34,13 +34,13 @@ class Hymn: Identifiable, Codable {
         modelVersion: Int = 1
     ) {
         self.id = id
-        self.title = title
-        self.lyrics = lyrics
-        self.musicalKey = musicalKey
-        self.copyright = copyright
-        self.author = author
-        self.tags = tags
-        self.notes = notes
+        self.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.lyrics = lyrics?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.musicalKey = musicalKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.copyright = copyright?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.author = author?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.tags = tags?.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        self.notes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.modelVersion = modelVersion
     }
 
@@ -147,7 +147,12 @@ extension Hymn {
             }
             lyricsLines.append(line)
         }
-        guard let hymnTitle = title else { return nil }
+        
+        // Validate that we have a title
+        guard let hymnTitle = title, !hymnTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { 
+            return nil 
+        }
+        
         let lyrics = lyricsLines.drop(while: { $0.trimmingCharacters(in: .whitespaces).isEmpty }).joined(separator: "\n")
         return Hymn(title: hymnTitle, lyrics: lyrics.isEmpty ? nil : lyrics, musicalKey: key, copyright: copyright, author: author)
     }
@@ -167,24 +172,44 @@ extension Hymn {
     // MARK: - JSON Import/Export
 
     static func fromJSON(_ data: Data) -> Hymn? {
-        try? JSONDecoder().decode(Hymn.self, from: data)
+        do {
+            return try JSONDecoder().decode(Hymn.self, from: data)
+        } catch {
+            print("JSON decode error: \(error)")
+            return nil
+        }
     }
 
     func toJSON(pretty: Bool = false) -> Data? {
-        let encoder = JSONEncoder()
-        if pretty { encoder.outputFormatting = .prettyPrinted }
-        return try? encoder.encode(self)
+        do {
+            let encoder = JSONEncoder()
+            if pretty { encoder.outputFormatting = .prettyPrinted }
+            return try encoder.encode(self)
+        } catch {
+            print("JSON encode error: \(error)")
+            return nil
+        }
     }
 
     // MARK: - Batch JSON Import/Export
 
     static func arrayFromJSON(_ data: Data) -> [Hymn]? {
-        try? JSONDecoder().decode([Hymn].self, from: data)
+        do {
+            return try JSONDecoder().decode([Hymn].self, from: data)
+        } catch {
+            print("JSON array decode error: \(error)")
+            return nil
+        }
     }
 
     static func arrayToJSON(_ hymns: [Hymn], pretty: Bool = false) -> Data? {
-        let encoder = JSONEncoder()
-        if pretty { encoder.outputFormatting = .prettyPrinted }
-        return try? encoder.encode(hymns)
+        do {
+            let encoder = JSONEncoder()
+            if pretty { encoder.outputFormatting = .prettyPrinted }
+            return try encoder.encode(hymns)
+        } catch {
+            print("JSON array encode error: \(error)")
+            return nil
+        }
     }
 }
