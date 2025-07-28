@@ -4,248 +4,26 @@ import AppKit
 import SwiftData
 import Foundation
 
-enum ExportType: Identifiable {
-    case singlePlainText, singleJSON, batchJSON, multipleJSON
-    var id: Int { hashValue }
-}
-
-enum ImportType: Identifiable {
-    case plainText, json
-    var id: Int { hashValue }
-}
-
-enum ExportFormat: String, CaseIterable {
-    case json = "JSON"
-    case plainText = "Plain Text"
-    
-    var description: String {
-        switch self {
-        case .json:
-            return "Export as JSON format"
-        case .plainText:
-            return "Export as plain text format"
-        }
-    }
-}
-
-// MARK: - Progress Overlay
-
-struct ProgressOverlay: View {
-    let isImporting: Bool
-    let isExporting: Bool
-    let progress: Double
-    let message: String
-    
-    var body: some View {
-        ZStack {
-            // Semi-transparent background
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-            
-            // Progress card
-            VStack(spacing: 20) {
-                // Icon
-                Image(systemName: isImporting ? "arrow.down.circle.fill" : "arrow.up.circle.fill")
-                    .font(.system(size: 40))
-                    .foregroundColor(isImporting ? .blue : .green)
-                
-                // Title
-                Text(isImporting ? "Importing Hymns" : "Exporting Hymns")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                // Progress bar
-                VStack(spacing: 8) {
-                    ProgressView(value: progress, total: 1.0)
-                        .progressViewStyle(LinearProgressViewStyle())
-                        .frame(width: 300)
-                    
-                    Text("\(Int(progress * 100))%")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                // Message
-                if !message.isEmpty {
-                    Text(message)
-                        .font(.body)
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.secondary)
-                }
-                
-                // Cancel button (only for imports)
-                if isImporting {
-                    Button("Cancel") {
-                        // TODO: Implement cancellation
-                    }
-                    .buttonStyle(.bordered)
-                    .foregroundColor(.red)
-                }
-            }
-            .padding(30)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.windowBackgroundColor))
-                    .shadow(radius: 10)
-            )
-        }
-    }
-}
-
-// MARK: - Import Error Types
-enum ImportError: LocalizedError, Identifiable {
-    case fileReadFailed(String)
-    case invalidFormat(String)
-    case missingTitle
-    case emptyFile
-    case permissionDenied
-    case fileNotFound
-    case corruptedData(String)
-    case duplicateHymn(String)
-    case unknown(String)
-    
-    // Enhanced error details for better user feedback
-    var detailedErrorDescription: String {
-        switch self {
-        case .fileReadFailed(let reason):
-            return "Failed to read file: \(reason)"
-        case .invalidFormat(let details):
-            return "Invalid file format: \(details)"
-        case .missingTitle:
-            return "Hymn title is missing or empty"
-        case .emptyFile:
-            return "The selected file is empty"
-        case .permissionDenied:
-            return "Permission denied. Please check file permissions."
-        case .fileNotFound:
-            return "File not found. It may have been moved or deleted."
-        case .corruptedData(let details):
-            return "File appears to be corrupted: \(details)"
-        case .duplicateHymn(let title):
-            return "A hymn with the title '\(title)' already exists"
-        case .unknown(let message):
-            return "An unexpected error occurred: \(message)"
-        }
-    }
-    
-    var id: String {
-        switch self {
-        case .fileReadFailed: return "fileReadFailed"
-        case .invalidFormat: return "invalidFormat"
-        case .missingTitle: return "missingTitle"
-        case .emptyFile: return "emptyFile"
-        case .permissionDenied: return "permissionDenied"
-        case .fileNotFound: return "fileNotFound"
-        case .corruptedData: return "corruptedData"
-        case .duplicateHymn: return "duplicateHymn"
-        case .unknown: return "unknown"
-        }
-    }
-    
-    var errorDescription: String? {
-        switch self {
-        case .fileReadFailed(let reason):
-            return "Failed to read file: \(reason)"
-        case .invalidFormat(let details):
-            return "Invalid file format: \(details)"
-        case .missingTitle:
-            return "Hymn title is missing or empty"
-        case .emptyFile:
-            return "The selected file is empty"
-        case .permissionDenied:
-            return "Permission denied. Please check file permissions."
-        case .fileNotFound:
-            return "File not found. It may have been moved or deleted."
-        case .corruptedData(let details):
-            return "File appears to be corrupted: \(details)"
-        case .duplicateHymn(let title):
-            return "A hymn with the title '\(title)' already exists"
-        case .unknown(let message):
-            return "An unexpected error occurred: \(message)"
-        }
-    }
-    
-    var recoverySuggestion: String? {
-        switch self {
-        case .fileReadFailed:
-            return "Please ensure the file exists and is not corrupted."
-        case .invalidFormat:
-            return "Please check that the file format matches the expected structure."
-        case .missingTitle:
-            return "Please ensure the first non-empty line contains the hymn title."
-        case .emptyFile:
-            return "Please select a file that contains hymn data."
-        case .permissionDenied:
-            return "Please check the file permissions or try selecting a different file."
-        case .fileNotFound:
-            return "Please verify the file location and try again."
-        case .corruptedData:
-            return "Please try with a different file or check the file integrity."
-        case .duplicateHymn:
-            return "You can either rename the existing hymn or choose a different file."
-        case .unknown:
-            return "Please try again or contact support if the problem persists."
-        }
-    }
-}
-
-
-
-// MARK: - Duplicate Handling
-struct DuplicateHymn: Identifiable {
-    let id = UUID()
-    let existingHymn: Hymn
-    let newHymn: Hymn
-    let title: String
-    
-    init(existing: Hymn, new: Hymn) {
-        self.existingHymn = existing
-        self.newHymn = new
-        self.title = existing.title
-    }
-}
-
-enum DuplicateResolution: String, CaseIterable {
-    case skip = "Skip"
-    case merge = "Merge"
-    case replace = "Replace"
-    
-    var description: String {
-        switch self {
-        case .skip:
-            return "Skip duplicate hymns"
-        case .merge:
-            return "Merge new data with existing hymns"
-        case .replace:
-            return "Replace existing hymns with new data"
-        }
-    }
-}
-
 struct ContentView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Hymn.title, order: .forward) private var hymns: [Hymn]
+    
+    // Core state
     @State private var selected: Hymn? = nil
     @State private var newHymn: Hymn? = nil
     @State private var showingEdit = false
     @State private var editHymn: Hymn? = nil
-    @State private var importPicker = false
-    @State private var importJSONPicker = false
+    
+    // Import/Export state
     @State private var exportType: ExportType?
     @State private var importType: ImportType?
-    @State private var exportURL: URL?
+    @State private var currentImportType: ImportType?
     
-    // Error handling states
     // Error handling states
     @State private var importError: ImportError?
     @State private var showingErrorAlert = false
     @State private var importSuccessMessage: String?
     @State private var showingSuccessAlert = false
-    
-
-    
-    // Store the current import type to avoid timing issues
-    @State private var currentImportType: ImportType?
     
     // Import preview states
     @State private var importPreview: ImportPreview?
@@ -262,96 +40,51 @@ struct ContentView: View {
     @State private var showingDeleteConfirmation = false
     @State private var hymnToDelete: Hymn?
     
-    // Progress indicator states
-    @State private var isImporting = false
-    @State private var isExporting = false
-    @State private var importProgress: Double = 0.0
-    @State private var exportProgress: Double = 0.0
-    @State private var progressMessage = ""
+    // Multi-select states for batch delete
+    @State private var selectedHymnsForDelete: Set<UUID> = []
+    @State private var isMultiSelectMode = false
+    @State private var showingBatchDeleteConfirmation = false
+    
+    // Operations
+    @StateObject private var operations: HymnOperations
+    
+    init() {
+        // Initialize operations with a temporary context - will be updated in onAppear
+        self._operations = StateObject(wrappedValue: HymnOperations(context: ModelContext(try! ModelContainer(for: Hymn.self))))
+    }
 
     var body: some View {
         NavigationSplitView {
-            List(hymns, id: \.id, selection: $selected) { hymn in
-                Text(hymn.title)
-                    .tag(hymn)
-                    .contextMenu {
-                        Button("Edit") {
-                            editHymn = hymn
-                            selected = hymn
-                            showingEdit = true
-                        }
-                        Button("Present") {
-                            selected = hymn
-                            present(hymn)
-                        }
-                        Divider()
-                        Button("Delete", role: .destructive) {
-                            hymnToDelete = hymn
-                            selected = hymn
-                            showingDeleteConfirmation = true
-                        }
-                    }
-            }
-            .frame(minWidth: 200)
+            HymnListView(
+                hymns: hymns,
+                selected: $selected,
+                selectedHymnsForDelete: $selectedHymnsForDelete,
+                isMultiSelectMode: $isMultiSelectMode,
+                editHymn: $editHymn,
+                showingEdit: $showingEdit,
+                hymnToDelete: $hymnToDelete,
+                showingDeleteConfirmation: $showingDeleteConfirmation,
+                showingBatchDeleteConfirmation: $showingBatchDeleteConfirmation,
+                onPresent: present
+            )
             .toolbar {
-                // Sidebar actions
-                ToolbarItemGroup(placement: .navigation) {
-                    Button("Add") {
-                        let hymn = Hymn(title: "")
-                        context.insert(hymn)
-                        // Don't save immediately - wait for user to save or cancel
-                        newHymn = hymn
-                        selected = hymn
-                        showingEdit = true
-                    }
-                    Button("Import Plain Text") { 
-                        importType = .plainText
-                        currentImportType = .plainText
-                    }
-                    Button("Import JSON") { 
-                        importType = .json
-                        currentImportType = .json
-                    }
-                    Button("Export Selected") { 
-                        if let hymn = selected {
-                            selectedHymnsForExport = [hymn.id]
-                            showingExportSelection = true
-                        }
-                    }
-                    .disabled(selected == nil)
-                    Button("Export Multiple") { 
-                        showingExportSelection = true
-                    }
-                    .disabled(hymns.isEmpty)
-                    Button("Export All") { 
-                        selectedHymnsForExport = Set(hymns.map { $0.id })
-                        showingExportSelection = true
-                    }
-                    .disabled(hymns.isEmpty)
-                    Divider()
-                    Button("Delete Selected") {
-                        hymnToDelete = selected
-                        showingDeleteConfirmation = true
-                    }
-                    .disabled(selected == nil)
-                    .foregroundColor(.red)
-                }
-                // Detail actions
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button("Edit") {
-                        editHymn = selected
-                        showingEdit = true
-                    }
-                        .disabled(selected == nil)
-                    Button("Present") { if let hymn = selected { present(hymn) } }
-                        .disabled(selected == nil)
-                    Button("Delete") {
-                        hymnToDelete = selected
-                        showingDeleteConfirmation = true
-                    }
-                    .disabled(selected == nil)
-                    .keyboardShortcut(.delete, modifiers: [])
-                }
+                HymnToolbar(
+                    hymns: hymns,
+                    selected: $selected,
+                    selectedHymnsForDelete: $selectedHymnsForDelete,
+                    isMultiSelectMode: $isMultiSelectMode,
+                    showingEdit: $showingEdit,
+                    newHymn: $newHymn,
+                    importType: $importType,
+                    currentImportType: $currentImportType,
+                    selectedHymnsForExport: $selectedHymnsForExport,
+                    showingExportSelection: $showingExportSelection,
+                    hymnToDelete: $hymnToDelete,
+                    showingDeleteConfirmation: $showingDeleteConfirmation,
+                    showingBatchDeleteConfirmation: $showingBatchDeleteConfirmation,
+                    context: context,
+                    onPresent: present
+                ).createToolbar()
             }
             .fileImporter(
                 isPresented: Binding(get: { importType != nil }, set: { if !$0 { 
@@ -360,7 +93,6 @@ struct ContentView: View {
                 allowedContentTypes: importType == .json ? [UTType.json] : [UTType.plainText],
                 allowsMultipleSelection: false
             ) { result in
-                // Store the import type before processing to avoid timing issues
                 let importTypeToUse = importType ?? currentImportType
                 handleImportResult(result, importType: importTypeToUse)
             }
@@ -374,17 +106,7 @@ struct ContentView: View {
                 defaultFilename: exportDefaultFilename
             ) { result in
                 if case let .success(url) = result, let type = exportType {
-                    switch type {
-                    case .singlePlainText:
-                        if let hymn = selected { exportPlainTextHymn(hymn, to: url) }
-                    case .singleJSON:
-                        if let hymn = selected { exportSingleJSONHymn(hymn, to: url) }
-                    case .multipleJSON:
-                        let hymnsToExport = hymns.filter { selectedHymnsForExport.contains($0.id) }
-                        exportBatchJSON(hymnsToExport, to: url)
-                    case .batchJSON:
-                        exportBatchJSON(hymns, to: url)
-                    }
+                    handleExportResult(type, url: url)
                 }
             }
             .alert("Import Error", isPresented: $showingErrorAlert, presenting: importError) { error in
@@ -407,9 +129,48 @@ struct ContentView: View {
                     Text("Are you sure you want to delete '\(hymn.title)'? This action cannot be undone.")
                 }
             }
+            .alert("Delete Multiple Hymns", isPresented: $showingBatchDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete \(selectedHymnsForDelete.count) Hymn\(selectedHymnsForDelete.count == 1 ? "" : "s")", role: .destructive) {
+                    deleteSelectedHymns()
+                }
+            } message: {
+                let hymnTitles = hymns.filter { selectedHymnsForDelete.contains($0.id) }.map { $0.title }
+                let titleList = hymnTitles.prefix(3).joined(separator: ", ")
+                let remainingCount = max(0, hymnTitles.count - 3)
+                
+                var message = "Are you sure you want to delete the following hymn\(selectedHymnsForDelete.count == 1 ? "" : "s")? This action cannot be undone.\n\n\(titleList)"
+                
+                if remainingCount > 0 {
+                    message += "\n\n...and \(remainingCount) more"
+                }
+                
+                return Text(message)
+            }
 
         } detail: {
-            if let hymn = selected {
+            if isMultiSelectMode {
+                VStack {
+                    Text("Multi-Select Mode")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.orange)
+                    
+                    Text("\(selectedHymnsForDelete.count) hymn\(selectedHymnsForDelete.count == 1 ? "" : "s") selected")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    if !selectedHymnsForDelete.isEmpty {
+                        Text("Press Cmd+Delete to delete selected hymns")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.top)
+                    }
+                    
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let hymn = selected {
                 LyricsDetailView(hymn: hymn)
             } else {
                 Text("Select a hymn")
@@ -419,10 +180,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingEdit) {
             if let hymn = selected { 
                 HymnEditView(hymn: hymn, onSave: { savedHymn in
-                    // Hymn was saved successfully
                     try? context.save()
-                    
-                    // Clear new hymn state since it's now properly saved
                     if newHymn == savedHymn {
                         newHymn = nil
                     }
@@ -431,7 +189,6 @@ struct ContentView: View {
         }
         .onChange(of: showingEdit) { _, isShowing in
             if !isShowing {
-                // Sheet was dismissed - check if we need to clean up empty hymn
                 cleanupEmptyHymn()
             }
         }
@@ -456,45 +213,121 @@ struct ContentView: View {
             )
         }
         .overlay(
-            // Progress overlay for import/export operations
             Group {
-                if isImporting || isExporting {
+                if operations.isImporting || operations.isExporting {
                     ProgressOverlay(
-                        isImporting: isImporting,
-                        isExporting: isExporting,
-                        progress: isImporting ? importProgress : exportProgress,
-                        message: progressMessage
+                        isImporting: operations.isImporting,
+                        isExporting: operations.isExporting,
+                        progress: operations.isImporting ? operations.importProgress : operations.exportProgress,
+                        message: operations.progressMessage
                     )
                 }
             }
         )
-    }
-
-    // MARK: - Actions
-
-    private func deleteHymns(at offsets: IndexSet) {
-        for index in offsets {
-            let hymn = hymns[index]
-            context.delete(hymn)
+        .onAppear {
+            // Update operations context with the actual context
+            operations.updateContext(context)
         }
     }
 
-    private func importFromFile(_ url: URL) {
-        guard let text = try? String(contentsOf: url) else { return }
-        let titleLine = text
-            .components(separatedBy: .newlines)
-            .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
-        let body = text.dropFirst(titleLine.count)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let newHymn = Hymn(title: titleLine, lyrics: body)
-        context.insert(newHymn)
-        try? context.save()
+    // MARK: - Actions
+    
+    private func present(_ hymn: Hymn) {
+        if let window = NSApplication.shared.windows.first(where: { $0.title == "Presenter" }) {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            let presenterWindow = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+            presenterWindow.title = "Presenter"
+            presenterWindow.contentView = NSHostingView(rootView: PresenterView(hymn: hymn))
+            presenterWindow.makeKeyAndOrderFront(nil)
+        }
     }
-
-    // MARK: - Import Result Handler
+    
+    private func deleteHymn() {
+        guard let hymn = hymnToDelete else { return }
+        
+        context.delete(hymn)
+        
+        if selected == hymn {
+            selected = nil
+        }
+        if editHymn == hymn {
+            editHymn = nil
+        }
+        if newHymn == hymn {
+            newHymn = nil
+        }
+        
+        do {
+            try context.save()
+        } catch {
+            print("Error saving after delete: \(error)")
+        }
+        
+        hymnToDelete = nil
+        showingDeleteConfirmation = false
+    }
+    
+    private func deleteSelectedHymns() {
+        let hymnsToDelete = hymns.filter { selectedHymnsForDelete.contains($0.id) }
+        
+        for hymn in hymnsToDelete {
+            context.delete(hymn)
+            
+            if selected == hymn {
+                selected = nil
+            }
+            if editHymn == hymn {
+                editHymn = nil
+            }
+            if newHymn == hymn {
+                newHymn = nil
+            }
+        }
+        
+        do {
+            try context.save()
+        } catch {
+            print("Error saving after batch delete: \(error)")
+        }
+        
+        selectedHymnsForDelete.removeAll()
+        isMultiSelectMode = false
+        showingBatchDeleteConfirmation = false
+    }
+    
+    private func cleanupEmptyHymn() {
+        if let hymn = newHymn, hymn.title.trimmingCharacters(in: .whitespaces).isEmpty {
+            context.delete(hymn)
+            
+            if selected == hymn {
+                selected = nil
+            }
+            if editHymn == hymn {
+                editHymn = nil
+            }
+            newHymn = nil
+            
+            do {
+                try context.save()
+            } catch {
+                print("Error saving after cleanup: \(error)")
+            }
+        }
+    }
+    
+    private func cleanupAfterExport() {
+        selectedHymnsForExport.removeAll()
+    }
+    
+    // MARK: - Import/Export Handlers
     
     private func handleImportResult(_ result: Result<[URL], Error>, importType: ImportType?) {
-        // Debug: Print the import type
         print("DEBUG: importType parameter = \(String(describing: importType))")
         
         switch result {
@@ -504,156 +337,90 @@ struct ContentView: View {
                 return
             }
             
-            // Start accessing the security-scoped resource
-            guard url.startAccessingSecurityScopedResource() else {
-                showError(.permissionDenied)
+            guard let importType = importType else {
+                showError(.unknown("Unknown import type"))
                 return
             }
             
-            defer {
-                url.stopAccessingSecurityScopedResource()
-            }
-            
-            // Check if file exists
-            guard FileManager.default.fileExists(atPath: url.path) else {
-                showError(.fileNotFound)
-                return
-            }
-            
-            // Perform import based on type
             switch importType {
             case .plainText:
-                print("DEBUG: Importing as plain text")
-                importPlainTextHymn(from: url)
+                operations.importPlainTextHymn(
+                    from: url,
+                    hymns: hymns,
+                    onComplete: { preview in
+                        importPreview = preview
+                        showingImportPreview = true
+                    },
+                    onError: { error in
+                        showError(error)
+                    }
+                )
             case .json:
-                print("DEBUG: Importing as JSON")
-                importBatchJSON(from: url)
-            case .none:
-                print("DEBUG: importType is nil! Trying to determine from file extension...")
-                // Fallback: try to determine import type from file extension
-                let fileExtension = url.pathExtension.lowercased()
-                if fileExtension == "json" {
-                    print("DEBUG: Detected JSON from file extension")
-                    importBatchJSON(from: url)
-                } else if fileExtension == "txt" || fileExtension.isEmpty {
-                    print("DEBUG: Detected plain text from file extension")
-                    importPlainTextHymn(from: url)
-                } else {
-                    showError(.unknown("Unknown import type - importType is nil and could not determine from file extension"))
-                }
+                operations.importBatchJSON(
+                    from: url,
+                    hymns: hymns,
+                    onComplete: { preview in
+                        importPreview = preview
+                        showingImportPreview = true
+                    },
+                    onError: { error in
+                        showError(error)
+                    }
+                )
             }
             
         case .failure(let error):
             let nsError = error as NSError
-            switch nsError.code {
-            case NSFileReadNoPermissionError:
-                showError(.permissionDenied)
-            case NSFileReadNoSuchFileError:
-                showError(.fileNotFound)
-            case NSFileReadCorruptFileError:
-                showError(.corruptedData("File appears to be corrupted"))
-            default:
-                showError(.unknown(error.localizedDescription))
-            }
+            let specificError = getSpecificFileError(nsError)
+            showError(specificError)
         }
         
-        // Clear the current import type after processing
         currentImportType = nil
     }
     
-    // MARK: - Export Functions
-    
-    private func confirmExport() {
-        let hymnsToExport = hymns.filter { selectedHymnsForExport.contains($0.id) }
-        
-        if hymnsToExport.isEmpty {
-            showError(.unknown("No hymns selected for export"))
-            return
-        }
-        
-        // Set the export type based on format and count
-        if hymnsToExport.count == 1 {
-            exportType = exportFormat == .json ? .singleJSON : .singlePlainText
-        } else {
-            exportType = exportFormat == .json ? .multipleJSON : .batchJSON
-        }
-        
-        // Store the selected hymns for the file exporter
-        // The file exporter will use this to determine which hymns to export
-        
-        // Clear export selection state
-        showingExportSelection = false
-    }
-    
-    private func cancelExport() {
-        showingExportSelection = false
-        selectedHymnsForExport.removeAll()
-    }
-    
-    private func cleanupAfterExport() {
-        selectedHymnsForExport.removeAll()
-    }
-    
-    // MARK: - Delete Functions
-    
-    private func deleteHymn() {
-        guard let hymn = hymnToDelete else { return }
-        
-        // Remove from context
-        context.delete(hymn)
-        
-        // Clear selection if it was the deleted hymn
-        if selected == hymn {
-            selected = nil
-        }
-        
-        // Clear edit state if it was the deleted hymn
-        if editHymn == hymn {
-            editHymn = nil
-        }
-        
-        // Clear new hymn state if it was the deleted hymn
-        if newHymn == hymn {
-            newHymn = nil
-        }
-        
-        // Save changes
-        do {
-            try context.save()
-        } catch {
-            print("Error saving after delete: \(error)")
-        }
-        
-        // Clear delete state
-        hymnToDelete = nil
-        showingDeleteConfirmation = false
-    }
-    
-    private func cleanupEmptyHymn() {
-        // Check if the new hymn is empty and should be removed
-        if let hymn = newHymn, hymn.title.trimmingCharacters(in: .whitespaces).isEmpty {
-            // Remove the empty hymn from context
-            context.delete(hymn)
-            
-            // Clear selection if it was the empty hymn
-            if selected == hymn {
-                selected = nil
+    private func handleExportResult(_ type: ExportType, url: URL) {
+        switch type {
+        case .singlePlainText:
+            if let hymn = selected {
+                operations.exportPlainTextHymn(
+                    hymn,
+                    to: url,
+                    onComplete: { },
+                    onError: { error in
+                        showError(error)
+                    }
+                )
             }
-            
-            // Clear edit state if it was the empty hymn
-            if editHymn == hymn {
-                editHymn = nil
+        case .singleJSON:
+            if let hymn = selected {
+                operations.exportSingleJSONHymn(
+                    hymn,
+                    to: url,
+                    onComplete: { },
+                    onError: { error in
+                        showError(error)
+                    }
+                )
             }
-            
-            // Clear new hymn state
-            newHymn = nil
-            
-            // Save changes
-            do {
-                try context.save()
-            } catch {
-                print("Error saving after cleanup: \(error)")
-            }
+        case .multipleJSON:
+            let hymnsToExport = hymns.filter { selectedHymnsForExport.contains($0.id) }
+            operations.exportBatchJSON(
+                hymnsToExport,
+                to: url,
+                onComplete: { },
+                onError: { error in
+                    showError(error)
+                }
+            )
+        case .batchJSON:
+            operations.exportBatchJSON(
+                hymns,
+                to: url,
+                onComplete: { },
+                onError: { error in
+                    showError(error)
+                }
+            )
         }
     }
     
@@ -662,15 +429,12 @@ struct ContentView: View {
     private func confirmImport() {
         guard let preview = importPreview else { return }
         
-        // Get selected hymns
         let selectedValidHymns = preview.hymns.filter { selectedHymnsForImport.contains($0.id) }
         let selectedDuplicateHymns = preview.duplicates.filter { selectedHymnsForImport.contains($0.id) }
         
-        // Convert back to Hymn objects for processing
         var hymnsToImport: [Hymn] = []
         var duplicatesToProcess: [DuplicateHymn] = []
         
-        // Process valid hymns
         for previewHymn in selectedValidHymns {
             let hymn = Hymn(
                 title: previewHymn.title,
@@ -684,7 +448,6 @@ struct ContentView: View {
             hymnsToImport.append(hymn)
         }
         
-        // Process duplicates
         for previewHymn in selectedDuplicateHymns {
             if let existingHymn = previewHymn.existingHymn {
                 let newHymn = Hymn(
@@ -700,15 +463,11 @@ struct ContentView: View {
             }
         }
         
-        // Process the import
         processFinalImport(validHymns: hymnsToImport, duplicates: duplicatesToProcess, errors: preview.errors)
-        
-        // Clear preview state
-        importPreview = nil
-        selectedHymnsForImport.removeAll()
     }
     
     private func cancelImport() {
+        showingImportPreview = false
         importPreview = nil
         selectedHymnsForImport.removeAll()
     }
@@ -716,65 +475,59 @@ struct ContentView: View {
     private func processFinalImport(validHymns: [Hymn], duplicates: [DuplicateHymn], errors: [String]) {
         Task {
             await MainActor.run {
-                isImporting = true
-                importProgress = 0.0
-                progressMessage = "Processing import..."
+                operations.isImporting = true
+                operations.importProgress = 0.0
+                operations.progressMessage = "Processing import..."
             }
             
             do {
                 let totalItems = validHymns.count + duplicates.count
                 var processedItems = 0
                 
-                // Handle duplicates based on resolution
                 switch duplicateResolution {
                 case .skip:
-                    // Skip duplicates, only import new hymns
                     break
                 case .merge:
-                    // Merge new data with existing hymns
                     for duplicate in duplicates {
                         await MainActor.run {
-                            importProgress = Double(processedItems) / Double(totalItems)
-                            progressMessage = "Merging duplicate: \(duplicate.newHymn.title)..."
+                            operations.importProgress = Double(processedItems) / Double(totalItems)
+                            operations.progressMessage = "Merging duplicate: \(duplicate.newHymn.title)..."
                         }
                         mergeHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
                         processedItems += 1
                     }
                 case .replace:
-                    // Replace existing hymns with new data
                     for duplicate in duplicates {
                         await MainActor.run {
-                            importProgress = Double(processedItems) / Double(totalItems)
-                            progressMessage = "Replacing duplicate: \(duplicate.newHymn.title)..."
+                            operations.importProgress = Double(processedItems) / Double(totalItems)
+                            operations.progressMessage = "Replacing duplicate: \(duplicate.newHymn.title)..."
                         }
                         replaceHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
                         processedItems += 1
                     }
                 }
                 
-                // Insert all valid hymns
                 for hymn in validHymns {
                     await MainActor.run {
-                        importProgress = Double(processedItems) / Double(totalItems)
-                        progressMessage = "Importing hymn: \(hymn.title)..."
+                        operations.importProgress = Double(processedItems) / Double(totalItems)
+                        operations.progressMessage = "Importing hymn: \(hymn.title)..."
                     }
                     context.insert(hymn)
                     processedItems += 1
                 }
                 
                 await MainActor.run {
-                    importProgress = 0.9
-                    progressMessage = "Saving to database..."
+                    operations.importProgress = 0.9
+                    operations.progressMessage = "Saving to database..."
                 }
                 
                 try context.save()
                 
                 await MainActor.run {
-                    importProgress = 1.0
-                    progressMessage = "Import complete!"
+                    operations.importProgress = 1.0
+                    operations.progressMessage = "Import complete!"
                 }
                 
-                // Generate success message
                 var message = "Successfully imported \(validHymns.count) hymn\(validHymns.count == 1 ? "" : "s")"
                 
                 if !duplicates.isEmpty {
@@ -793,20 +546,45 @@ struct ContentView: View {
                     message += ". \(errors.count) error\(errors.count == 1 ? "" : "s") encountered"
                 }
                 
-                // Small delay to show completion
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    isImporting = false
+                    operations.isImporting = false
                     showSuccess(message)
                 }
                 
             } catch {
                 await MainActor.run {
-                    isImporting = false
+                    operations.isImporting = false
                 }
                 showError(.unknown("Failed to save imported hymns: \(error.localizedDescription)"))
             }
         }
     }
+    
+    // MARK: - Export Functions
+    
+    private func confirmExport() {
+        let hymnsToExport = hymns.filter { selectedHymnsForExport.contains($0.id) }
+        
+        if hymnsToExport.isEmpty {
+            showError(.unknown("No hymns selected for export"))
+            return
+        }
+        
+        if hymnsToExport.count == 1 {
+            exportType = exportFormat == .json ? .singleJSON : .singlePlainText
+        } else {
+            exportType = exportFormat == .json ? .multipleJSON : .batchJSON
+        }
+        
+        showingExportSelection = false
+    }
+    
+    private func cancelExport() {
+        showingExportSelection = false
+        selectedHymnsForExport.removeAll()
+    }
+    
+    // MARK: - Helper Functions
     
     private func showError(_ error: ImportError) {
         importError = error
@@ -818,11 +596,7 @@ struct ContentView: View {
         showingSuccessAlert = true
     }
     
-
-    
     private func mergeHymnData(existing: Hymn, new: Hymn) {
-        // Merge new data into existing hymn, preserving existing data when new data is empty
-        // Only update fields that are empty in existing but have content in new
         if (existing.lyrics?.isEmpty ?? true) && !(new.lyrics?.isEmpty ?? true) {
             existing.lyrics = new.lyrics
         }
@@ -844,7 +618,6 @@ struct ContentView: View {
     }
     
     private func replaceHymnData(existing: Hymn, new: Hymn) {
-        // Replace existing hymn data with new data
         existing.lyrics = new.lyrics
         existing.musicalKey = new.musicalKey
         existing.author = new.author
@@ -852,8 +625,6 @@ struct ContentView: View {
         existing.notes = new.notes
         existing.tags = new.tags
     }
-    
-    // MARK: - Specific Error Handling
     
     private func getSpecificFileError(_ error: NSError) -> ImportError {
         switch error.code {
@@ -874,373 +645,8 @@ struct ContentView: View {
         }
     }
     
-    private func getSpecificExportError(_ error: NSError, operation: String) -> ImportError {
-        switch error.code {
-        case NSFileWriteNoPermissionError:
-            return .permissionDenied
-        case NSFileWriteOutOfSpaceError:
-            return .fileReadFailed("Not enough disk space to save the \(operation) file")
-        case NSFileWriteVolumeReadOnlyError:
-            return .fileReadFailed("Cannot write to read-only volume")
-        case NSFileWriteFileExistsError:
-            return .fileReadFailed("A file with the same name already exists")
-        case NSFileWriteInapplicableStringEncodingError:
-            return .invalidFormat("Cannot encode \(operation) data with the current encoding")
-        default:
-            return .fileReadFailed("Failed to export \(operation): \(error.localizedDescription)")
-        }
-    }
-
-    // MARK: - Import/Export Helpers
-
-    private func importPlainTextHymn(from url: URL) {
-        Task {
-            await MainActor.run {
-                isImporting = true
-                importProgress = 0.0
-                progressMessage = "Reading file..."
-            }
-            
-            do {
-                // Simulate file reading progress
-                await MainActor.run {
-                    importProgress = 0.2
-                    progressMessage = "Parsing content..."
-                }
-                
-                let text = try String(contentsOf: url, encoding: .utf8)
-                
-                // Check if file is empty
-                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                    await MainActor.run {
-                        isImporting = false
-                    }
-                    showError(.emptyFile)
-                    return
-                }
-                
-                await MainActor.run {
-                    importProgress = 0.4
-                    progressMessage = "Validating hymn data..."
-                }
-                
-                guard let hymn = Hymn.fromPlainText(text) else {
-                    await MainActor.run {
-                        isImporting = false
-                    }
-                    showError(.invalidFormat("Could not parse plain text format. Please ensure the first non-empty line is the title."))
-                    return
-                }
-                
-                await MainActor.run {
-                    importProgress = 0.6
-                    progressMessage = "Checking for duplicates..."
-                }
-                
-                // Create preview data
-                var validHymns: [ImportPreviewHymn] = []
-                var duplicateHymns: [ImportPreviewHymn] = []
-                var errors: [String] = []
-                
-                // Check for duplicate titles
-                if let existingHymn = hymns.first(where: { $0.title.lowercased() == hymn.title.lowercased() }) {
-                    duplicateHymns.append(ImportPreviewHymn(from: hymn, isDuplicate: true, existingHymn: existingHymn))
-                } else {
-                    validHymns.append(ImportPreviewHymn(from: hymn))
-                }
-                
-                await MainActor.run {
-                    importProgress = 0.8
-                    progressMessage = "Preparing preview..."
-                }
-                
-                // Create preview and show it
-                let preview = ImportPreview(
-                    hymns: validHymns,
-                    duplicates: duplicateHymns,
-                    errors: errors,
-                    fileName: url.lastPathComponent
-                )
-                
-                await MainActor.run {
-                    importProgress = 1.0
-                    progressMessage = "Complete!"
-                    
-                    // Small delay to show completion
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isImporting = false
-                        importPreview = preview
-                        showingImportPreview = true
-                    }
-                }
-                
-            } catch let error as NSError {
-                await MainActor.run {
-                    isImporting = false
-                }
-                let specificError = getSpecificFileError(error)
-                showError(specificError)
-            }
-        }
-    }
-
-    private func importBatchJSON(from url: URL) {
-        Task {
-            await MainActor.run {
-                isImporting = true
-                importProgress = 0.0
-                progressMessage = "Reading JSON file..."
-            }
-            
-            do {
-                await MainActor.run {
-                    importProgress = 0.1
-                    progressMessage = "Loading file data..."
-                }
-                
-                let data = try Data(contentsOf: url)
-                
-                // Check if file is empty
-                guard !data.isEmpty else {
-                    await MainActor.run {
-                        isImporting = false
-                    }
-                    showError(.emptyFile)
-                    return
-                }
-                
-                await MainActor.run {
-                    importProgress = 0.2
-                    progressMessage = "Parsing JSON data..."
-                }
-                
-                guard let importedHymns = Hymn.arrayFromJSON(data) else {
-                    await MainActor.run {
-                        isImporting = false
-                    }
-                    showError(.invalidFormat("Could not parse JSON format. Please ensure the file contains valid JSON."))
-                    return
-                }
-                
-                guard !importedHymns.isEmpty else {
-                    await MainActor.run {
-                        isImporting = false
-                    }
-                    showError(.invalidFormat("No hymns found in the JSON file."))
-                    return
-                }
-                
-                await MainActor.run {
-                    importProgress = 0.3
-                    progressMessage = "Processing \(importedHymns.count) hymns..."
-                }
-                
-                // Create preview data
-                var validHymns: [ImportPreviewHymn] = []
-                var duplicateHymns: [ImportPreviewHymn] = []
-                var errors: [String] = []
-                
-                let totalHymns = importedHymns.count
-                for (index, hymn) in importedHymns.enumerated() {
-                    // Update progress for each hymn processed
-                    let progress = 0.3 + (Double(index) / Double(totalHymns)) * 0.6
-                    await MainActor.run {
-                        importProgress = progress
-                        progressMessage = "Processing hymn \(index + 1) of \(totalHymns)..."
-                    }
-                    
-                    // Validate hymn has a title
-                    guard !hymn.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                        errors.append("Hymn missing title")
-                        continue
-                    }
-                    
-                    // Check for duplicates
-                    if let existingHymn = hymns.first(where: { $0.title.lowercased() == hymn.title.lowercased() }) {
-                        duplicateHymns.append(ImportPreviewHymn(from: hymn, isDuplicate: true, existingHymn: existingHymn))
-                    } else {
-                        validHymns.append(ImportPreviewHymn(from: hymn))
-                    }
-                }
-                
-                await MainActor.run {
-                    importProgress = 0.9
-                    progressMessage = "Preparing preview..."
-                }
-                
-                // Create preview and show it
-                let preview = ImportPreview(
-                    hymns: validHymns,
-                    duplicates: duplicateHymns,
-                    errors: errors,
-                    fileName: url.lastPathComponent
-                )
-                
-                await MainActor.run {
-                    importProgress = 1.0
-                    progressMessage = "Complete!"
-                    
-                    // Small delay to show completion
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isImporting = false
-                        importPreview = preview
-                        showingImportPreview = true
-                    }
-                }
-                
-            } catch let error as NSError {
-                await MainActor.run {
-                    isImporting = false
-                }
-                let specificError = getSpecificFileError(error)
-                showError(specificError)
-            }
-        }
-    }
-
-    private func exportPlainTextHymn(_ hymn: Hymn, to url: URL) {
-        Task {
-            await MainActor.run {
-                isExporting = true
-                exportProgress = 0.0
-                progressMessage = "Preparing hymn data..."
-            }
-            
-            do {
-                await MainActor.run {
-                    exportProgress = 0.5
-                    progressMessage = "Generating plain text format..."
-                }
-                
-                let text = hymn.toPlainText()
-                
-                await MainActor.run {
-                    exportProgress = 0.8
-                    progressMessage = "Writing to file..."
-                }
-                
-                try text.write(to: url, atomically: true, encoding: .utf8)
-                
-                await MainActor.run {
-                    exportProgress = 1.0
-                    progressMessage = "Export complete!"
-                    
-                    // Small delay to show completion
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isExporting = false
-                    }
-                }
-                
-            } catch let error as NSError {
-                await MainActor.run {
-                    isExporting = false
-                }
-                let specificError = getSpecificExportError(error, operation: "plain text")
-                showError(specificError)
-            }
-        }
-    }
-
-    private func exportSingleJSONHymn(_ hymn: Hymn, to url: URL) {
-        Task {
-            await MainActor.run {
-                isExporting = true
-                exportProgress = 0.0
-                progressMessage = "Preparing hymn data..."
-            }
-            
-            do {
-                await MainActor.run {
-                    exportProgress = 0.3
-                    progressMessage = "Generating JSON format..."
-                }
-                
-                guard let data = hymn.toJSON(pretty: true) else {
-                    await MainActor.run {
-                        isExporting = false
-                    }
-                    showError(.invalidFormat("Failed to generate JSON data for hymn '\(hymn.title)'. The hymn data may be corrupted."))
-                    return
-                }
-                
-                await MainActor.run {
-                    exportProgress = 0.7
-                    progressMessage = "Writing to file..."
-                }
-                
-                try data.write(to: url)
-                
-                await MainActor.run {
-                    exportProgress = 1.0
-                    progressMessage = "Export complete!"
-                    
-                    // Small delay to show completion
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isExporting = false
-                    }
-                }
-                
-            } catch let error as NSError {
-                await MainActor.run {
-                    isExporting = false
-                }
-                let specificError = getSpecificExportError(error, operation: "JSON")
-                showError(specificError)
-            }
-        }
-    }
-
-    private func exportBatchJSON(_ hymns: [Hymn], to url: URL) {
-        Task {
-            await MainActor.run {
-                isExporting = true
-                exportProgress = 0.0
-                progressMessage = "Preparing \(hymns.count) hymns for export..."
-            }
-            
-            do {
-                await MainActor.run {
-                    exportProgress = 0.2
-                    progressMessage = "Generating JSON data..."
-                }
-                
-                guard let data = Hymn.arrayToJSON(hymns, pretty: true) else {
-                    await MainActor.run {
-                        isExporting = false
-                    }
-                    showError(.invalidFormat("Failed to generate JSON data for \(hymns.count) hymns. Some hymn data may be corrupted."))
-                    return
-                }
-                
-                await MainActor.run {
-                    exportProgress = 0.6
-                    progressMessage = "Writing \(hymns.count) hymns to file..."
-                }
-                
-                try data.write(to: url)
-                
-                await MainActor.run {
-                    exportProgress = 1.0
-                    progressMessage = "Export complete! \(hymns.count) hymns exported."
-                    
-                    // Small delay to show completion
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isExporting = false
-                    }
-                }
-                
-            } catch let error as NSError {
-                await MainActor.run {
-                    isExporting = false
-                }
-                let specificError = getSpecificExportError(error, operation: "JSON")
-                showError(specificError)
-            }
-        }
-    }
-
     // MARK: - File Exporter Helpers
-
+    
     private var exportDocument: some FileDocument {
         struct ExportDoc: FileDocument {
             static var readableContentTypes: [UTType] = [.plainText, .json]
@@ -1270,10 +676,9 @@ struct ContentView: View {
         case .none:
             break
         }
-        // Always return a default ExportDoc if no other case matches
         return ExportDoc(data: Data())
     }
-
+    
     private var exportContentType: UTType {
         switch exportType {
         case .singlePlainText: return .plainText
@@ -1281,7 +686,7 @@ struct ContentView: View {
         default: return .plainText
         }
     }
-
+    
     private var exportDefaultFilename: String {
         switch exportType {
         case .singlePlainText: return (selected?.title ?? "Hymn") + ".txt"
@@ -1289,31 +694,6 @@ struct ContentView: View {
         case .multipleJSON: return "Selected_Hymns.json"
         case .batchJSON: return "Hymns.json"
         default: return "Export"
-        }
-    }
-
-    // MARK: - Presenter
-
-    private func present(_ hymn: Hymn) {
-        guard let screen = NSScreen.main else { return }
-        let window = NSWindow(
-            contentRect: screen.visibleFrame,
-            styleMask: [.titled, .fullSizeContentView, .resizable, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false,
-            screen: screen
-        )
-        window.contentViewController = NSHostingController(rootView: PresenterView(hymn: hymn))
-        window.collectionBehavior = [.fullScreenPrimary, .fullScreenAllowsTiling, .canJoinAllSpaces]
-        window.title = hymn.title
-        window.titleVisibility = .visible
-        window.titlebarAppearsTransparent = true
-        window.isReleasedWhenClosed = false
-        presenterWindow = window
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            window.toggleFullScreen(nil)
         }
     }
 }
