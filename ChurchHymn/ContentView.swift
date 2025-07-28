@@ -5,13 +5,27 @@ import SwiftData
 import Foundation
 
 enum ExportType: Identifiable {
-    case singlePlainText, singleJSON, batchJSON
+    case singlePlainText, singleJSON, batchJSON, multipleJSON
     var id: Int { hashValue }
 }
 
 enum ImportType: Identifiable {
     case plainText, json
     var id: Int { hashValue }
+}
+
+enum ExportFormat: String, CaseIterable {
+    case json = "JSON"
+    case plainText = "Plain Text"
+    
+    var description: String {
+        switch self {
+        case .json:
+            return "Export as JSON format"
+        case .plainText:
+            return "Export as plain text format"
+        }
+    }
 }
 
 // MARK: - Import Error Types
@@ -174,6 +188,11 @@ struct ContentView: View {
     @State private var showingImportPreview = false
     @State private var selectedHymnsForImport: Set<UUID> = []
     @State private var duplicateResolution: DuplicateResolution = .skip
+    
+    // Export selection states
+    @State private var showingExportSelection = false
+    @State private var selectedHymnsForExport: Set<UUID> = []
+    @State private var exportFormat: ExportFormat = .json
 
     var body: some View {
         NavigationSplitView {
@@ -201,12 +220,22 @@ struct ContentView: View {
                         importType = .json
                         currentImportType = .json
                     }
-                    Button("Export Selected (Text)") { exportType = .singlePlainText }
-                        .disabled(selected == nil)
-                    Button("Export Selected (JSON)") { exportType = .singleJSON }
-                        .disabled(selected == nil)
-                    Button("Export All (JSON)") { exportType = .batchJSON }
-                        .disabled(hymns.isEmpty)
+                    Button("Export Selected") { 
+                        if let hymn = selected {
+                            selectedHymnsForExport = [hymn.id]
+                            showingExportSelection = true
+                        }
+                    }
+                    .disabled(selected == nil)
+                    Button("Export Multiple") { 
+                        showingExportSelection = true
+                    }
+                    .disabled(hymns.isEmpty)
+                    Button("Export All") { 
+                        selectedHymnsForExport = Set(hymns.map { $0.id })
+                        showingExportSelection = true
+                    }
+                    .disabled(hymns.isEmpty)
                 }
                 // Detail actions
                 ToolbarItemGroup(placement: .primaryAction) {
@@ -231,7 +260,10 @@ struct ContentView: View {
                 handleImportResult(result, importType: importTypeToUse)
             }
             .fileExporter(
-                isPresented: Binding(get: { exportType != nil }, set: { if !$0 { exportType = nil } }),
+                isPresented: Binding(get: { exportType != nil }, set: { if !$0 { 
+                    exportType = nil
+                    cleanupAfterExport()
+                } }),
                 document: exportDocument,
                 contentType: exportContentType,
                 defaultFilename: exportDefaultFilename
@@ -242,6 +274,9 @@ struct ContentView: View {
                         if let hymn = selected { exportPlainTextHymn(hymn, to: url) }
                     case .singleJSON:
                         if let hymn = selected { exportSingleJSONHymn(hymn, to: url) }
+                    case .multipleJSON:
+                        let hymnsToExport = hymns.filter { selectedHymnsForExport.contains($0.id) }
+                        exportBatchJSON(hymnsToExport, to: url)
                     case .batchJSON:
                         exportBatchJSON(hymns, to: url)
                     }
@@ -279,6 +314,15 @@ struct ContentView: View {
                     onCancel: cancelImport
                 )
             }
+        }
+        .sheet(isPresented: $showingExportSelection) {
+            ExportSelectionView(
+                hymns: hymns,
+                selectedHymns: $selectedHymnsForExport,
+                exportFormat: $exportFormat,
+                onConfirm: confirmExport,
+                onCancel: cancelExport
+            )
         }
     }
 
@@ -371,6 +415,39 @@ struct ContentView: View {
         
         // Clear the current import type after processing
         currentImportType = nil
+    }
+    
+    // MARK: - Export Functions
+    
+    private func confirmExport() {
+        let hymnsToExport = hymns.filter { selectedHymnsForExport.contains($0.id) }
+        
+        if hymnsToExport.isEmpty {
+            showError(.unknown("No hymns selected for export"))
+            return
+        }
+        
+        // Set the export type based on format and count
+        if hymnsToExport.count == 1 {
+            exportType = exportFormat == .json ? .singleJSON : .singlePlainText
+        } else {
+            exportType = exportFormat == .json ? .multipleJSON : .batchJSON
+        }
+        
+        // Store the selected hymns for the file exporter
+        // The file exporter will use this to determine which hymns to export
+        
+        // Clear export selection state
+        showingExportSelection = false
+    }
+    
+    private func cancelExport() {
+        showingExportSelection = false
+        selectedHymnsForExport.removeAll()
+    }
+    
+    private func cleanupAfterExport() {
+        selectedHymnsForExport.removeAll()
     }
     
     // MARK: - Import Preview Functions
@@ -722,6 +799,11 @@ struct ContentView: View {
             if let hymn = selected, let data = hymn.toJSON(pretty: true) {
                 return ExportDoc(data: data)
             }
+        case .multipleJSON:
+            let hymnsToExport = hymns.filter { selectedHymnsForExport.contains($0.id) }
+            if let data = Hymn.arrayToJSON(hymnsToExport, pretty: true) {
+                return ExportDoc(data: data)
+            }
         case .batchJSON:
             if let data = Hymn.arrayToJSON(hymns, pretty: true) {
                 return ExportDoc(data: data)
@@ -736,7 +818,7 @@ struct ContentView: View {
     private var exportContentType: UTType {
         switch exportType {
         case .singlePlainText: return .plainText
-        case .singleJSON, .batchJSON: return .json
+        case .singleJSON, .multipleJSON, .batchJSON: return .json
         default: return .plainText
         }
     }
@@ -745,6 +827,7 @@ struct ContentView: View {
         switch exportType {
         case .singlePlainText: return (selected?.title ?? "Hymn") + ".txt"
         case .singleJSON: return (selected?.title ?? "Hymn") + ".json"
+        case .multipleJSON: return "Selected_Hymns.json"
         case .batchJSON: return "Hymns.json"
         default: return "Export"
         }
