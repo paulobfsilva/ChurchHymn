@@ -28,6 +28,70 @@ enum ExportFormat: String, CaseIterable {
     }
 }
 
+// MARK: - Progress Overlay
+
+struct ProgressOverlay: View {
+    let isImporting: Bool
+    let isExporting: Bool
+    let progress: Double
+    let message: String
+    
+    var body: some View {
+        ZStack {
+            // Semi-transparent background
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+            
+            // Progress card
+            VStack(spacing: 20) {
+                // Icon
+                Image(systemName: isImporting ? "arrow.down.circle.fill" : "arrow.up.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(isImporting ? .blue : .green)
+                
+                // Title
+                Text(isImporting ? "Importing Hymns" : "Exporting Hymns")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                // Progress bar
+                VStack(spacing: 8) {
+                    ProgressView(value: progress, total: 1.0)
+                        .progressViewStyle(LinearProgressViewStyle())
+                        .frame(width: 300)
+                    
+                    Text("\(Int(progress * 100))%")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                // Message
+                if !message.isEmpty {
+                    Text(message)
+                        .font(.body)
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.secondary)
+                }
+                
+                // Cancel button (only for imports)
+                if isImporting {
+                    Button("Cancel") {
+                        // TODO: Implement cancellation
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundColor(.red)
+                }
+            }
+            .padding(30)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.windowBackgroundColor))
+                    .shadow(radius: 10)
+            )
+        }
+    }
+}
+
 // MARK: - Import Error Types
 enum ImportError: LocalizedError, Identifiable {
     case fileReadFailed(String)
@@ -197,6 +261,13 @@ struct ContentView: View {
     // Delete confirmation states
     @State private var showingDeleteConfirmation = false
     @State private var hymnToDelete: Hymn?
+    
+    // Progress indicator states
+    @State private var isImporting = false
+    @State private var isExporting = false
+    @State private var importProgress: Double = 0.0
+    @State private var exportProgress: Double = 0.0
+    @State private var progressMessage = ""
 
     var body: some View {
         NavigationSplitView {
@@ -384,6 +455,19 @@ struct ContentView: View {
                 onCancel: cancelExport
             )
         }
+        .overlay(
+            // Progress overlay for import/export operations
+            Group {
+                if isImporting || isExporting {
+                    ProgressOverlay(
+                        isImporting: isImporting,
+                        isExporting: isExporting,
+                        progress: isImporting ? importProgress : exportProgress,
+                        message: progressMessage
+                    )
+                }
+            }
+        )
     }
 
     // MARK: - Actions
@@ -630,54 +714,97 @@ struct ContentView: View {
     }
     
     private func processFinalImport(validHymns: [Hymn], duplicates: [DuplicateHymn], errors: [String]) {
-        do {
-            // Handle duplicates based on resolution
-            switch duplicateResolution {
-            case .skip:
-                // Skip duplicates, only import new hymns
-                break
-            case .merge:
-                // Merge new data with existing hymns
-                for duplicate in duplicates {
-                    mergeHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
-                }
-            case .replace:
-                // Replace existing hymns with new data
-                for duplicate in duplicates {
-                    replaceHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
-                }
+        Task {
+            await MainActor.run {
+                isImporting = true
+                importProgress = 0.0
+                progressMessage = "Processing import..."
             }
             
-            // Insert all valid hymns
-            for hymn in validHymns {
-                context.insert(hymn)
-            }
-            
-            try context.save()
-            
-            // Generate success message
-            var message = "Successfully imported \(validHymns.count) hymn\(validHymns.count == 1 ? "" : "s")"
-            
-            if !duplicates.isEmpty {
-                let duplicateCount = duplicates.count
+            do {
+                let totalItems = validHymns.count + duplicates.count
+                var processedItems = 0
+                
+                // Handle duplicates based on resolution
                 switch duplicateResolution {
                 case .skip:
-                    message += ". Skipped \(duplicateCount) duplicate\(duplicateCount == 1 ? "" : "s")"
+                    // Skip duplicates, only import new hymns
+                    break
                 case .merge:
-                    message += ". Merged \(duplicateCount) duplicate\(duplicateCount == 1 ? "" : "s")"
+                    // Merge new data with existing hymns
+                    for duplicate in duplicates {
+                        await MainActor.run {
+                            importProgress = Double(processedItems) / Double(totalItems)
+                            progressMessage = "Merging duplicate: \(duplicate.newHymn.title)..."
+                        }
+                        mergeHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
+                        processedItems += 1
+                    }
                 case .replace:
-                    message += ". Replaced \(duplicateCount) duplicate\(duplicateCount == 1 ? "" : "s")"
+                    // Replace existing hymns with new data
+                    for duplicate in duplicates {
+                        await MainActor.run {
+                            importProgress = Double(processedItems) / Double(totalItems)
+                            progressMessage = "Replacing duplicate: \(duplicate.newHymn.title)..."
+                        }
+                        replaceHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
+                        processedItems += 1
+                    }
                 }
+                
+                // Insert all valid hymns
+                for hymn in validHymns {
+                    await MainActor.run {
+                        importProgress = Double(processedItems) / Double(totalItems)
+                        progressMessage = "Importing hymn: \(hymn.title)..."
+                    }
+                    context.insert(hymn)
+                    processedItems += 1
+                }
+                
+                await MainActor.run {
+                    importProgress = 0.9
+                    progressMessage = "Saving to database..."
+                }
+                
+                try context.save()
+                
+                await MainActor.run {
+                    importProgress = 1.0
+                    progressMessage = "Import complete!"
+                }
+                
+                // Generate success message
+                var message = "Successfully imported \(validHymns.count) hymn\(validHymns.count == 1 ? "" : "s")"
+                
+                if !duplicates.isEmpty {
+                    let duplicateCount = duplicates.count
+                    switch duplicateResolution {
+                    case .skip:
+                        message += ". Skipped \(duplicateCount) duplicate\(duplicateCount == 1 ? "" : "s")"
+                    case .merge:
+                        message += ". Merged \(duplicateCount) duplicate\(duplicateCount == 1 ? "" : "s")"
+                    case .replace:
+                        message += ". Replaced \(duplicateCount) duplicate\(duplicateCount == 1 ? "" : "s")"
+                    }
+                }
+                
+                if !errors.isEmpty {
+                    message += ". \(errors.count) error\(errors.count == 1 ? "" : "s") encountered"
+                }
+                
+                // Small delay to show completion
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    isImporting = false
+                    showSuccess(message)
+                }
+                
+            } catch {
+                await MainActor.run {
+                    isImporting = false
+                }
+                showError(.unknown("Failed to save imported hymns: \(error.localizedDescription)"))
             }
-            
-            if !errors.isEmpty {
-                message += ". \(errors.count) error\(errors.count == 1 ? "" : "s") encountered"
-            }
-            
-            showSuccess(message)
-            
-        } catch {
-            showError(.unknown("Failed to save imported hymns: \(error.localizedDescription)"))
         }
     }
     
@@ -767,139 +894,348 @@ struct ContentView: View {
     // MARK: - Import/Export Helpers
 
     private func importPlainTextHymn(from url: URL) {
-        do {
-            let text = try String(contentsOf: url, encoding: .utf8)
-            
-            // Check if file is empty
-            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                showError(.emptyFile)
-                return
+        Task {
+            await MainActor.run {
+                isImporting = true
+                importProgress = 0.0
+                progressMessage = "Reading file..."
             }
             
-            guard let hymn = Hymn.fromPlainText(text) else {
-                showError(.invalidFormat("Could not parse plain text format. Please ensure the first non-empty line is the title."))
-                return
-            }
-            
-            // Create preview data
-            var validHymns: [ImportPreviewHymn] = []
-            var duplicateHymns: [ImportPreviewHymn] = []
-            var errors: [String] = []
-            
-            // Check for duplicate titles
-            if let existingHymn = hymns.first(where: { $0.title.lowercased() == hymn.title.lowercased() }) {
-                duplicateHymns.append(ImportPreviewHymn(from: hymn, isDuplicate: true, existingHymn: existingHymn))
-            } else {
-                validHymns.append(ImportPreviewHymn(from: hymn))
-            }
-            
-            // Create preview and show it
-            let preview = ImportPreview(
-                hymns: validHymns,
-                duplicates: duplicateHymns,
-                errors: errors,
-                fileName: url.lastPathComponent
-            )
-            
-            importPreview = preview
-            showingImportPreview = true
-            
-        } catch let error as NSError {
-            let specificError = getSpecificFileError(error)
-            showError(specificError)
-        }
-    }
-
-    private func importBatchJSON(from url: URL) {
-        do {
-            let data = try Data(contentsOf: url)
-            
-            // Check if file is empty
-            guard !data.isEmpty else {
-                showError(.emptyFile)
-                return
-            }
-            
-            guard let importedHymns = Hymn.arrayFromJSON(data) else {
-                showError(.invalidFormat("Could not parse JSON format. Please ensure the file contains valid JSON."))
-                return
-            }
-            
-            guard !importedHymns.isEmpty else {
-                showError(.invalidFormat("No hymns found in the JSON file."))
-                return
-            }
-            
-            // Create preview data
-            var validHymns: [ImportPreviewHymn] = []
-            var duplicateHymns: [ImportPreviewHymn] = []
-            var errors: [String] = []
-            
-            for hymn in importedHymns {
-                // Validate hymn has a title
-                guard !hymn.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                    errors.append("Hymn missing title")
-                    continue
+            do {
+                // Simulate file reading progress
+                await MainActor.run {
+                    importProgress = 0.2
+                    progressMessage = "Parsing content..."
                 }
                 
-                // Check for duplicates
+                let text = try String(contentsOf: url, encoding: .utf8)
+                
+                // Check if file is empty
+                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    await MainActor.run {
+                        isImporting = false
+                    }
+                    showError(.emptyFile)
+                    return
+                }
+                
+                await MainActor.run {
+                    importProgress = 0.4
+                    progressMessage = "Validating hymn data..."
+                }
+                
+                guard let hymn = Hymn.fromPlainText(text) else {
+                    await MainActor.run {
+                        isImporting = false
+                    }
+                    showError(.invalidFormat("Could not parse plain text format. Please ensure the first non-empty line is the title."))
+                    return
+                }
+                
+                await MainActor.run {
+                    importProgress = 0.6
+                    progressMessage = "Checking for duplicates..."
+                }
+                
+                // Create preview data
+                var validHymns: [ImportPreviewHymn] = []
+                var duplicateHymns: [ImportPreviewHymn] = []
+                var errors: [String] = []
+                
+                // Check for duplicate titles
                 if let existingHymn = hymns.first(where: { $0.title.lowercased() == hymn.title.lowercased() }) {
                     duplicateHymns.append(ImportPreviewHymn(from: hymn, isDuplicate: true, existingHymn: existingHymn))
                 } else {
                     validHymns.append(ImportPreviewHymn(from: hymn))
                 }
+                
+                await MainActor.run {
+                    importProgress = 0.8
+                    progressMessage = "Preparing preview..."
+                }
+                
+                // Create preview and show it
+                let preview = ImportPreview(
+                    hymns: validHymns,
+                    duplicates: duplicateHymns,
+                    errors: errors,
+                    fileName: url.lastPathComponent
+                )
+                
+                await MainActor.run {
+                    importProgress = 1.0
+                    progressMessage = "Complete!"
+                    
+                    // Small delay to show completion
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isImporting = false
+                        importPreview = preview
+                        showingImportPreview = true
+                    }
+                }
+                
+            } catch let error as NSError {
+                await MainActor.run {
+                    isImporting = false
+                }
+                let specificError = getSpecificFileError(error)
+                showError(specificError)
+            }
+        }
+    }
+
+    private func importBatchJSON(from url: URL) {
+        Task {
+            await MainActor.run {
+                isImporting = true
+                importProgress = 0.0
+                progressMessage = "Reading JSON file..."
             }
             
-            // Create preview and show it
-            let preview = ImportPreview(
-                hymns: validHymns,
-                duplicates: duplicateHymns,
-                errors: errors,
-                fileName: url.lastPathComponent
-            )
-            
-            importPreview = preview
-            showingImportPreview = true
-            
-        } catch let error as NSError {
-            let specificError = getSpecificFileError(error)
-            showError(specificError)
+            do {
+                await MainActor.run {
+                    importProgress = 0.1
+                    progressMessage = "Loading file data..."
+                }
+                
+                let data = try Data(contentsOf: url)
+                
+                // Check if file is empty
+                guard !data.isEmpty else {
+                    await MainActor.run {
+                        isImporting = false
+                    }
+                    showError(.emptyFile)
+                    return
+                }
+                
+                await MainActor.run {
+                    importProgress = 0.2
+                    progressMessage = "Parsing JSON data..."
+                }
+                
+                guard let importedHymns = Hymn.arrayFromJSON(data) else {
+                    await MainActor.run {
+                        isImporting = false
+                    }
+                    showError(.invalidFormat("Could not parse JSON format. Please ensure the file contains valid JSON."))
+                    return
+                }
+                
+                guard !importedHymns.isEmpty else {
+                    await MainActor.run {
+                        isImporting = false
+                    }
+                    showError(.invalidFormat("No hymns found in the JSON file."))
+                    return
+                }
+                
+                await MainActor.run {
+                    importProgress = 0.3
+                    progressMessage = "Processing \(importedHymns.count) hymns..."
+                }
+                
+                // Create preview data
+                var validHymns: [ImportPreviewHymn] = []
+                var duplicateHymns: [ImportPreviewHymn] = []
+                var errors: [String] = []
+                
+                let totalHymns = importedHymns.count
+                for (index, hymn) in importedHymns.enumerated() {
+                    // Update progress for each hymn processed
+                    let progress = 0.3 + (Double(index) / Double(totalHymns)) * 0.6
+                    await MainActor.run {
+                        importProgress = progress
+                        progressMessage = "Processing hymn \(index + 1) of \(totalHymns)..."
+                    }
+                    
+                    // Validate hymn has a title
+                    guard !hymn.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        errors.append("Hymn missing title")
+                        continue
+                    }
+                    
+                    // Check for duplicates
+                    if let existingHymn = hymns.first(where: { $0.title.lowercased() == hymn.title.lowercased() }) {
+                        duplicateHymns.append(ImportPreviewHymn(from: hymn, isDuplicate: true, existingHymn: existingHymn))
+                    } else {
+                        validHymns.append(ImportPreviewHymn(from: hymn))
+                    }
+                }
+                
+                await MainActor.run {
+                    importProgress = 0.9
+                    progressMessage = "Preparing preview..."
+                }
+                
+                // Create preview and show it
+                let preview = ImportPreview(
+                    hymns: validHymns,
+                    duplicates: duplicateHymns,
+                    errors: errors,
+                    fileName: url.lastPathComponent
+                )
+                
+                await MainActor.run {
+                    importProgress = 1.0
+                    progressMessage = "Complete!"
+                    
+                    // Small delay to show completion
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isImporting = false
+                        importPreview = preview
+                        showingImportPreview = true
+                    }
+                }
+                
+            } catch let error as NSError {
+                await MainActor.run {
+                    isImporting = false
+                }
+                let specificError = getSpecificFileError(error)
+                showError(specificError)
+            }
         }
     }
 
     private func exportPlainTextHymn(_ hymn: Hymn, to url: URL) {
-        do {
-            let text = hymn.toPlainText()
-            try text.write(to: url, atomically: true, encoding: .utf8)
-        } catch let error as NSError {
-            let specificError = getSpecificExportError(error, operation: "plain text")
-            showError(specificError)
+        Task {
+            await MainActor.run {
+                isExporting = true
+                exportProgress = 0.0
+                progressMessage = "Preparing hymn data..."
+            }
+            
+            do {
+                await MainActor.run {
+                    exportProgress = 0.5
+                    progressMessage = "Generating plain text format..."
+                }
+                
+                let text = hymn.toPlainText()
+                
+                await MainActor.run {
+                    exportProgress = 0.8
+                    progressMessage = "Writing to file..."
+                }
+                
+                try text.write(to: url, atomically: true, encoding: .utf8)
+                
+                await MainActor.run {
+                    exportProgress = 1.0
+                    progressMessage = "Export complete!"
+                    
+                    // Small delay to show completion
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isExporting = false
+                    }
+                }
+                
+            } catch let error as NSError {
+                await MainActor.run {
+                    isExporting = false
+                }
+                let specificError = getSpecificExportError(error, operation: "plain text")
+                showError(specificError)
+            }
         }
     }
 
     private func exportSingleJSONHymn(_ hymn: Hymn, to url: URL) {
-        do {
-            guard let data = hymn.toJSON(pretty: true) else {
-                showError(.invalidFormat("Failed to generate JSON data for hymn '\(hymn.title)'. The hymn data may be corrupted."))
-                return
+        Task {
+            await MainActor.run {
+                isExporting = true
+                exportProgress = 0.0
+                progressMessage = "Preparing hymn data..."
             }
-            try data.write(to: url)
-        } catch let error as NSError {
-            let specificError = getSpecificExportError(error, operation: "JSON")
-            showError(specificError)
+            
+            do {
+                await MainActor.run {
+                    exportProgress = 0.3
+                    progressMessage = "Generating JSON format..."
+                }
+                
+                guard let data = hymn.toJSON(pretty: true) else {
+                    await MainActor.run {
+                        isExporting = false
+                    }
+                    showError(.invalidFormat("Failed to generate JSON data for hymn '\(hymn.title)'. The hymn data may be corrupted."))
+                    return
+                }
+                
+                await MainActor.run {
+                    exportProgress = 0.7
+                    progressMessage = "Writing to file..."
+                }
+                
+                try data.write(to: url)
+                
+                await MainActor.run {
+                    exportProgress = 1.0
+                    progressMessage = "Export complete!"
+                    
+                    // Small delay to show completion
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isExporting = false
+                    }
+                }
+                
+            } catch let error as NSError {
+                await MainActor.run {
+                    isExporting = false
+                }
+                let specificError = getSpecificExportError(error, operation: "JSON")
+                showError(specificError)
+            }
         }
     }
 
     private func exportBatchJSON(_ hymns: [Hymn], to url: URL) {
-        do {
-            guard let data = Hymn.arrayToJSON(hymns, pretty: true) else {
-                showError(.invalidFormat("Failed to generate JSON data for \(hymns.count) hymns. Some hymn data may be corrupted."))
-                return
+        Task {
+            await MainActor.run {
+                isExporting = true
+                exportProgress = 0.0
+                progressMessage = "Preparing \(hymns.count) hymns for export..."
             }
-            try data.write(to: url)
-        } catch let error as NSError {
-            let specificError = getSpecificExportError(error, operation: "JSON")
-            showError(specificError)
+            
+            do {
+                await MainActor.run {
+                    exportProgress = 0.2
+                    progressMessage = "Generating JSON data..."
+                }
+                
+                guard let data = Hymn.arrayToJSON(hymns, pretty: true) else {
+                    await MainActor.run {
+                        isExporting = false
+                    }
+                    showError(.invalidFormat("Failed to generate JSON data for \(hymns.count) hymns. Some hymn data may be corrupted."))
+                    return
+                }
+                
+                await MainActor.run {
+                    exportProgress = 0.6
+                    progressMessage = "Writing \(hymns.count) hymns to file..."
+                }
+                
+                try data.write(to: url)
+                
+                await MainActor.run {
+                    exportProgress = 1.0
+                    progressMessage = "Export complete! \(hymns.count) hymns exported."
+                    
+                    // Small delay to show completion
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isExporting = false
+                    }
+                }
+                
+            } catch let error as NSError {
+                await MainActor.run {
+                    isExporting = false
+                }
+                let specificError = getSpecificExportError(error, operation: "JSON")
+                showError(specificError)
+            }
         }
     }
 
