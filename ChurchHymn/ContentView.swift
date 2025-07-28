@@ -168,6 +168,9 @@ struct ContentView: View {
     @State private var duplicateResolution: DuplicateResolution = .skip
     @State private var pendingValidHymns: [Hymn] = []
     @State private var pendingErrors: [String] = []
+    
+    // Store the current import type to avoid timing issues
+    @State private var currentImportType: ImportType?
 
     var body: some View {
         NavigationSplitView {
@@ -187,8 +190,14 @@ struct ContentView: View {
                         selected = hymn
                         showingEdit = true
                     }
-                    Button("Import Plain Text") { importType = .plainText }
-                    Button("Import JSON") { importType = .json }
+                    Button("Import Plain Text") { 
+                        importType = .plainText
+                        currentImportType = .plainText
+                    }
+                    Button("Import JSON") { 
+                        importType = .json
+                        currentImportType = .json
+                    }
                     Button("Export Selected (Text)") { exportType = .singlePlainText }
                         .disabled(selected == nil)
                     Button("Export Selected (JSON)") { exportType = .singleJSON }
@@ -208,11 +217,15 @@ struct ContentView: View {
                 }
             }
             .fileImporter(
-                isPresented: Binding(get: { importType != nil }, set: { if !$0 { importType = nil } }),
+                isPresented: Binding(get: { importType != nil }, set: { if !$0 { 
+                    importType = nil
+                } }),
                 allowedContentTypes: importType == .json ? [UTType.json] : [UTType.plainText],
                 allowsMultipleSelection: false
             ) { result in
-                handleImportResult(result)
+                // Store the import type before processing to avoid timing issues
+                let importTypeToUse = importType ?? currentImportType
+                handleImportResult(result, importType: importTypeToUse)
             }
             .fileExporter(
                 isPresented: Binding(get: { exportType != nil }, set: { if !$0 { exportType = nil } }),
@@ -296,7 +309,10 @@ struct ContentView: View {
 
     // MARK: - Import Result Handler
     
-    private func handleImportResult(_ result: Result<[URL], Error>) {
+    private func handleImportResult(_ result: Result<[URL], Error>, importType: ImportType?) {
+        // Debug: Print the import type
+        print("DEBUG: importType parameter = \(String(describing: importType))")
+        
         switch result {
         case .success(let urls):
             guard let url = urls.first else {
@@ -323,11 +339,24 @@ struct ContentView: View {
             // Perform import based on type
             switch importType {
             case .plainText:
+                print("DEBUG: Importing as plain text")
                 importPlainTextHymn(from: url)
             case .json:
+                print("DEBUG: Importing as JSON")
                 importBatchJSON(from: url)
             case .none:
-                showError(.unknown("Unknown import type"))
+                print("DEBUG: importType is nil! Trying to determine from file extension...")
+                // Fallback: try to determine import type from file extension
+                let fileExtension = url.pathExtension.lowercased()
+                if fileExtension == "json" {
+                    print("DEBUG: Detected JSON from file extension")
+                    importBatchJSON(from: url)
+                } else if fileExtension == "txt" || fileExtension.isEmpty {
+                    print("DEBUG: Detected plain text from file extension")
+                    importPlainTextHymn(from: url)
+                } else {
+                    showError(.unknown("Unknown import type - importType is nil and could not determine from file extension"))
+                }
             }
             
         case .failure(let error):
@@ -343,6 +372,9 @@ struct ContentView: View {
                 showError(.unknown(error.localizedDescription))
             }
         }
+        
+        // Clear the current import type after processing
+        currentImportType = nil
     }
     
     private func showError(_ error: ImportError) {
@@ -353,6 +385,145 @@ struct ContentView: View {
     private func showSuccess(_ message: String) {
         importSuccessMessage = message
         showingSuccessAlert = true
+    }
+    
+    // MARK: - Duplicate Processing
+    
+    private func processImportWithDuplicates() {
+        var allValidHymns = pendingValidHymns
+        var allErrors = pendingErrors
+        
+        switch duplicateResolution {
+        case .skip:
+            // Skip duplicates, only import new hymns
+            break
+            
+        case .merge:
+            // Merge new data with existing hymns
+            for duplicate in duplicateHymns {
+                mergeHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
+            }
+            
+        case .replace:
+            // Replace existing hymns with new data
+            for duplicate in duplicateHymns {
+                replaceHymnData(existing: duplicate.existingHymn, new: duplicate.newHymn)
+            }
+        }
+        
+        // Process all valid hymns
+        processImportResults(validHymns: allValidHymns, errors: allErrors)
+        
+        // Clear pending data
+        pendingValidHymns.removeAll()
+        pendingErrors.removeAll()
+        duplicateHymns.removeAll()
+    }
+    
+    private func processImportResults(validHymns: [Hymn], errors: [String]) {
+        do {
+            // Insert all valid hymns
+            for hymn in validHymns {
+                context.insert(hymn)
+            }
+            
+            try context.save()
+            
+            // Generate success message
+            var message = "Successfully imported \(validHymns.count) hymn\(validHymns.count == 1 ? "" : "s")"
+            
+            if !duplicateHymns.isEmpty {
+                let duplicateCount = duplicateHymns.count
+                switch duplicateResolution {
+                case .skip:
+                    message += ". Skipped \(duplicateCount) duplicate\(duplicateCount == 1 ? "" : "s")"
+                case .merge:
+                    message += ". Merged \(duplicateCount) duplicate\(duplicateCount == 1 ? "" : "s")"
+                case .replace:
+                    message += ". Replaced \(duplicateCount) duplicate\(duplicateCount == 1 ? "" : "s")"
+                }
+            }
+            
+            if !errors.isEmpty {
+                message += ". \(errors.count) error\(errors.count == 1 ? "" : "s") encountered"
+            }
+            
+            showSuccess(message)
+            
+        } catch {
+            showError(.unknown("Failed to save imported hymns: \(error.localizedDescription)"))
+        }
+    }
+    
+    private func mergeHymnData(existing: Hymn, new: Hymn) {
+        // Merge new data into existing hymn, preserving existing data when new data is empty
+        // Only update fields that are empty in existing but have content in new
+        if (existing.lyrics?.isEmpty ?? true) && !(new.lyrics?.isEmpty ?? true) {
+            existing.lyrics = new.lyrics
+        }
+        if (existing.musicalKey?.isEmpty ?? true) && !(new.musicalKey?.isEmpty ?? true) {
+            existing.musicalKey = new.musicalKey
+        }
+        if (existing.author?.isEmpty ?? true) && !(new.author?.isEmpty ?? true) {
+            existing.author = new.author
+        }
+        if (existing.copyright?.isEmpty ?? true) && !(new.copyright?.isEmpty ?? true) {
+            existing.copyright = new.copyright
+        }
+        if (existing.notes?.isEmpty ?? true) && !(new.notes?.isEmpty ?? true) {
+            existing.notes = new.notes
+        }
+        if (existing.tags?.isEmpty ?? true) && !(new.tags?.isEmpty ?? true) {
+            existing.tags = new.tags
+        }
+    }
+    
+    private func replaceHymnData(existing: Hymn, new: Hymn) {
+        // Replace existing hymn data with new data
+        existing.lyrics = new.lyrics
+        existing.musicalKey = new.musicalKey
+        existing.author = new.author
+        existing.copyright = new.copyright
+        existing.notes = new.notes
+        existing.tags = new.tags
+    }
+    
+    // MARK: - Specific Error Handling
+    
+    private func getSpecificFileError(_ error: NSError) -> ImportError {
+        switch error.code {
+        case NSFileReadNoPermissionError:
+            return .permissionDenied
+        case NSFileReadNoSuchFileError:
+            return .fileNotFound
+        case NSFileReadCorruptFileError:
+            return .corruptedData("File appears to be corrupted")
+        case NSFileReadInapplicableStringEncodingError:
+            return .invalidFormat("File encoding is not supported. Please ensure the file uses UTF-8 encoding.")
+        case NSFileReadTooLargeError:
+            return .fileReadFailed("File is too large to read")
+        case NSFileReadUnknownStringEncodingError:
+            return .invalidFormat("Unknown file encoding. Please ensure the file uses UTF-8 encoding.")
+        default:
+            return .fileReadFailed(error.localizedDescription)
+        }
+    }
+    
+    private func getSpecificExportError(_ error: NSError, operation: String) -> ImportError {
+        switch error.code {
+        case NSFileWriteNoPermissionError:
+            return .permissionDenied
+        case NSFileWriteOutOfSpaceError:
+            return .fileReadFailed("Not enough disk space to save the \(operation) file")
+        case NSFileWriteVolumeReadOnlyError:
+            return .fileReadFailed("Cannot write to read-only volume")
+        case NSFileWriteFileExistsError:
+            return .fileReadFailed("A file with the same name already exists")
+        case NSFileWriteInapplicableStringEncodingError:
+            return .invalidFormat("Cannot encode \(operation) data with the current encoding")
+        default:
+            return .fileReadFailed("Failed to export \(operation): \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Import/Export Helpers
@@ -452,32 +623,35 @@ struct ContentView: View {
         do {
             let text = hymn.toPlainText()
             try text.write(to: url, atomically: true, encoding: .utf8)
-        } catch {
-            showError(.unknown("Failed to export plain text: \(error.localizedDescription)"))
+        } catch let error as NSError {
+            let specificError = getSpecificExportError(error, operation: "plain text")
+            showError(specificError)
         }
     }
 
     private func exportSingleJSONHymn(_ hymn: Hymn, to url: URL) {
         do {
             guard let data = hymn.toJSON(pretty: true) else {
-                showError(.invalidFormat("Failed to generate JSON data for hymn"))
+                showError(.invalidFormat("Failed to generate JSON data for hymn '\(hymn.title)'. The hymn data may be corrupted."))
                 return
             }
             try data.write(to: url)
-        } catch {
-            showError(.unknown("Failed to export JSON: \(error.localizedDescription)"))
+        } catch let error as NSError {
+            let specificError = getSpecificExportError(error, operation: "JSON")
+            showError(specificError)
         }
     }
 
     private func exportBatchJSON(_ hymns: [Hymn], to url: URL) {
         do {
             guard let data = Hymn.arrayToJSON(hymns, pretty: true) else {
-                showError(.invalidFormat("Failed to generate JSON data for hymns"))
+                showError(.invalidFormat("Failed to generate JSON data for \(hymns.count) hymns. Some hymn data may be corrupted."))
                 return
             }
             try data.write(to: url)
-        } catch {
-            showError(.unknown("Failed to export JSON: \(error.localizedDescription)"))
+        } catch let error as NSError {
+            let specificError = getSpecificExportError(error, operation: "JSON")
+            showError(specificError)
         }
     }
 

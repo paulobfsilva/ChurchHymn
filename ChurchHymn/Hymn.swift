@@ -174,6 +174,9 @@ extension Hymn {
     static func fromJSON(_ data: Data) -> Hymn? {
         do {
             return try JSONDecoder().decode(Hymn.self, from: data)
+        } catch let error as DecodingError {
+            print("JSON decode error: \(error)")
+            return nil
         } catch {
             print("JSON decode error: \(error)")
             return nil
@@ -185,6 +188,9 @@ extension Hymn {
             let encoder = JSONEncoder()
             if pretty { encoder.outputFormatting = .prettyPrinted }
             return try encoder.encode(self)
+        } catch let error as EncodingError {
+            print("JSON encode error: \(error)")
+            return nil
         } catch {
             print("JSON encode error: \(error)")
             return nil
@@ -196,6 +202,9 @@ extension Hymn {
     static func arrayFromJSON(_ data: Data) -> [Hymn]? {
         do {
             return try JSONDecoder().decode([Hymn].self, from: data)
+        } catch let error as DecodingError {
+            print("JSON array decode error: \(error)")
+            return nil
         } catch {
             print("JSON array decode error: \(error)")
             return nil
@@ -207,6 +216,9 @@ extension Hymn {
             let encoder = JSONEncoder()
             if pretty { encoder.outputFormatting = .prettyPrinted }
             return try encoder.encode(hymns)
+        } catch let error as EncodingError {
+            print("JSON array encode error: \(error)")
+            return nil
         } catch {
             print("JSON array encode error: \(error)")
             return nil
