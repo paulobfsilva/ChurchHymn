@@ -193,12 +193,33 @@ struct ContentView: View {
     @State private var showingExportSelection = false
     @State private var selectedHymnsForExport: Set<UUID> = []
     @State private var exportFormat: ExportFormat = .json
+    
+    // Delete confirmation states
+    @State private var showingDeleteConfirmation = false
+    @State private var hymnToDelete: Hymn?
 
     var body: some View {
         NavigationSplitView {
             List(hymns, id: \.id, selection: $selected) { hymn in
                 Text(hymn.title)
                     .tag(hymn)
+                    .contextMenu {
+                        Button("Edit") {
+                            editHymn = hymn
+                            selected = hymn
+                            showingEdit = true
+                        }
+                        Button("Present") {
+                            selected = hymn
+                            present(hymn)
+                        }
+                        Divider()
+                        Button("Delete", role: .destructive) {
+                            hymnToDelete = hymn
+                            selected = hymn
+                            showingDeleteConfirmation = true
+                        }
+                    }
             }
             .frame(minWidth: 200)
             .toolbar {
@@ -207,7 +228,7 @@ struct ContentView: View {
                     Button("Add") {
                         let hymn = Hymn(title: "")
                         context.insert(hymn)
-                        try? context.save()
+                        // Don't save immediately - wait for user to save or cancel
                         newHymn = hymn
                         selected = hymn
                         showingEdit = true
@@ -236,6 +257,13 @@ struct ContentView: View {
                         showingExportSelection = true
                     }
                     .disabled(hymns.isEmpty)
+                    Divider()
+                    Button("Delete Selected") {
+                        hymnToDelete = selected
+                        showingDeleteConfirmation = true
+                    }
+                    .disabled(selected == nil)
+                    .foregroundColor(.red)
                 }
                 // Detail actions
                 ToolbarItemGroup(placement: .primaryAction) {
@@ -246,6 +274,12 @@ struct ContentView: View {
                         .disabled(selected == nil)
                     Button("Present") { if let hymn = selected { present(hymn) } }
                         .disabled(selected == nil)
+                    Button("Delete") {
+                        hymnToDelete = selected
+                        showingDeleteConfirmation = true
+                    }
+                    .disabled(selected == nil)
+                    .keyboardShortcut(.delete, modifiers: [])
                 }
             }
             .fileImporter(
@@ -292,6 +326,16 @@ struct ContentView: View {
             } message: {
                 Text(importSuccessMessage ?? "Hymn imported successfully.")
             }
+            .alert("Delete Hymn", isPresented: $showingDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    deleteHymn()
+                }
+            } message: {
+                if let hymn = hymnToDelete {
+                    Text("Are you sure you want to delete '\(hymn.title)'? This action cannot be undone.")
+                }
+            }
 
         } detail: {
             if let hymn = selected {
@@ -302,7 +346,23 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showingEdit) {
-            if let hymn = selected { HymnEditView(hymn: hymn) }
+            if let hymn = selected { 
+                HymnEditView(hymn: hymn, onSave: { savedHymn in
+                    // Hymn was saved successfully
+                    try? context.save()
+                    
+                    // Clear new hymn state since it's now properly saved
+                    if newHymn == savedHymn {
+                        newHymn = nil
+                    }
+                })
+            }
+        }
+        .onChange(of: showingEdit) { _, isShowing in
+            if !isShowing {
+                // Sheet was dismissed - check if we need to clean up empty hymn
+                cleanupEmptyHymn()
+            }
         }
         .sheet(isPresented: $showingImportPreview) {
             if let preview = importPreview {
@@ -448,6 +508,69 @@ struct ContentView: View {
     
     private func cleanupAfterExport() {
         selectedHymnsForExport.removeAll()
+    }
+    
+    // MARK: - Delete Functions
+    
+    private func deleteHymn() {
+        guard let hymn = hymnToDelete else { return }
+        
+        // Remove from context
+        context.delete(hymn)
+        
+        // Clear selection if it was the deleted hymn
+        if selected == hymn {
+            selected = nil
+        }
+        
+        // Clear edit state if it was the deleted hymn
+        if editHymn == hymn {
+            editHymn = nil
+        }
+        
+        // Clear new hymn state if it was the deleted hymn
+        if newHymn == hymn {
+            newHymn = nil
+        }
+        
+        // Save changes
+        do {
+            try context.save()
+        } catch {
+            print("Error saving after delete: \(error)")
+        }
+        
+        // Clear delete state
+        hymnToDelete = nil
+        showingDeleteConfirmation = false
+    }
+    
+    private func cleanupEmptyHymn() {
+        // Check if the new hymn is empty and should be removed
+        if let hymn = newHymn, hymn.title.trimmingCharacters(in: .whitespaces).isEmpty {
+            // Remove the empty hymn from context
+            context.delete(hymn)
+            
+            // Clear selection if it was the empty hymn
+            if selected == hymn {
+                selected = nil
+            }
+            
+            // Clear edit state if it was the empty hymn
+            if editHymn == hymn {
+                editHymn = nil
+            }
+            
+            // Clear new hymn state
+            newHymn = nil
+            
+            // Save changes
+            do {
+                try context.save()
+            } catch {
+                print("Error saving after cleanup: \(error)")
+            }
+        }
     }
     
     // MARK: - Import Preview Functions
