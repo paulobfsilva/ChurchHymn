@@ -239,19 +239,22 @@ struct ContentView: View {
     // MARK: - Actions
     
     private func present(_ hymn: Hymn) {
-        if let window = NSApplication.shared.windows.first(where: { $0.title == "Presenter" }) {
-            window.makeKeyAndOrderFront(nil)
-        } else {
-            let presenterWindow = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                backing: .buffered,
-                defer: false
-            )
-            presenterWindow.title = "Presenter"
-            presenterWindow.contentView = NSHostingView(rootView: PresenterView(hymn: hymn))
-            presenterWindow.makeKeyAndOrderFront(nil)
-        }
+        // 1. Create the SwiftUI view
+        let presenterView = PresenterView(hymn: hymn)
+        // 2. Host it in AppKit
+        let hostingController = NSHostingController(rootView: presenterView)
+        // 3. Build a new window
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = hymn.title
+        // Enable macOS full‑screen capability
+        window.collectionBehavior.insert(.fullScreenPrimary)
+        // Optionally remove title bar & controls:
+        window.styleMask.remove(.titled)
+        window.standardWindowButton(.closeButton)?.isHidden = true
+        // 4. Toggle full screen
+        window.toggleFullScreen(nil)
+        // 5. Show it
+        window.makeKeyAndOrderFront(nil)
     }
     
     private func deleteHymn() {

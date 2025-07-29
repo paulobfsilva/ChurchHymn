@@ -96,7 +96,7 @@ struct HymnToolbar {
             
             ToolbarItemGroup(placement: .primaryAction) {
                 Button("Edit") {
-                    // This will be handled by the parent view
+                    showingEdit = true
                 }
                 .disabled(selected == nil)
                 Button("Present") { 

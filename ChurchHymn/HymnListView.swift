@@ -31,6 +31,11 @@ struct HymnListView: View {
                 Text(hymn.title)
                     .tag(hymn)
             }
+            .onTapGesture {
+                if !isMultiSelectMode {
+                    selected = hymn
+                }
+            }
             .contextMenu {
                 Button("Edit") {
                     editHymn = hymn
