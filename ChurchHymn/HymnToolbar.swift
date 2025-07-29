@@ -30,20 +30,11 @@ struct HymnToolbar {
                     selected = hymn
                     showingEdit = true
                 }
-                Button("Import Plain Text") { 
-                    importType = .plainText
-                    currentImportType = .plainText
+                Button("Import") { 
+                    importType = .auto
+                    currentImportType = .auto
                 }
-                            Button("Import JSON") { 
-                importType = .json
-                currentImportType = .json
-            }
-            Button("Import Large JSON") { 
-                importType = .json
-                currentImportType = .json
-                // This will automatically use streaming for large files
-            }
-            .help("Use streaming for large JSON files (>10MB)")
+                .help("Import hymns from text or JSON files")
                 Button("Export Selected") { 
                     if let hymn = selected {
                         selectedHymnsForExport = [hymn.id]

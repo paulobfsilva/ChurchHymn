@@ -90,7 +90,7 @@ struct ContentView: View {
                 isPresented: Binding(get: { importType != nil }, set: { if !$0 { 
                     importType = nil
                 } }),
-                allowedContentTypes: importType == .json ? [UTType.json] : [UTType.plainText],
+                allowedContentTypes: importType == .auto ? [UTType.json, UTType.plainText] : (importType == .json ? [UTType.json] : [UTType.plainText]),
                 allowsMultipleSelection: false
             ) { result in
                 let importTypeToUse = importType ?? currentImportType
@@ -351,7 +351,10 @@ struct ContentView: View {
                 return
             }
             
-            switch importType {
+            // Auto-detect file type and size for intelligent import
+            let actualImportType = detectImportType(for: url, requestedType: importType)
+            
+            switch actualImportType {
             case .plainText:
                 operations.importPlainTextHymn(
                     from: url,
@@ -396,6 +399,9 @@ struct ContentView: View {
                         }
                     )
                 }
+            case .auto:
+                // This should not happen as auto is converted to actual type above
+                showError(.unknown("Auto detection failed"))
             }
             
         case .failure(let error):
@@ -679,6 +685,58 @@ struct ContentView: View {
         existing.copyright = new.copyright
         existing.notes = new.notes
         existing.tags = new.tags
+    }
+    
+    // MARK: - File Type Detection
+    
+    private func detectImportType(for url: URL, requestedType: ImportType) -> ImportType {
+        // If a specific type was requested, use it
+        if requestedType != .auto {
+            return requestedType
+        }
+        
+        // Auto-detect based on file extension and content
+        let fileExtension = url.pathExtension.lowercased()
+        
+        // Check file extension first
+        if fileExtension == "json" {
+            return .json
+        } else if fileExtension == "txt" || fileExtension.isEmpty {
+            // For .txt files or files without extension, check content
+            return detectContentType(for: url)
+        }
+        
+        // Default to plain text for unknown extensions
+        return .plainText
+    }
+    
+    private func detectContentType(for url: URL) -> ImportType {
+        do {
+            let data = try Data(contentsOf: url)
+            
+            // Try to parse as JSON first
+            if let jsonObject = try? JSONSerialization.jsonObject(with: data) {
+                // If it's valid JSON, check if it looks like hymn data
+                if let jsonDict = jsonObject as? [String: Any] {
+                    // Single hymn object
+                    if jsonDict["title"] != nil {
+                        return .json
+                    }
+                } else if let jsonArray = jsonObject as? [[String: Any]] {
+                    // Array of hymn objects
+                    if !jsonArray.isEmpty && jsonArray.first?["title"] != nil {
+                        return .json
+                    }
+                }
+            }
+            
+            // If not JSON, treat as plain text
+            return .plainText
+            
+        } catch {
+            // If we can't read the file, default to plain text
+            return .plainText
+        }
     }
     
     private func getSpecificFileError(_ error: NSError) -> ImportError {

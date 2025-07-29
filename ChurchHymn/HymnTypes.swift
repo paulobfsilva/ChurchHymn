@@ -8,7 +8,7 @@ enum ExportType: Identifiable {
 }
 
 enum ImportType: Identifiable {
-    case plainText, json
+    case plainText, json, auto
     var id: Int { hashValue }
 }
 
