@@ -119,116 +119,48 @@ struct ContentView: View {
             } message: {
                 Text(importSuccessMessage ?? "Hymn imported successfully.")
             }
-            .alert("Delete Hymn", isPresented: $showingDeleteConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
-                    deleteHymn()
-                }
-            } message: {
-                if let hymn = hymnToDelete {
-                    Text("Are you sure you want to delete '\(hymn.title)'? This action cannot be undone.")
-                }
-            }
-            .alert("Delete Multiple Hymns", isPresented: $showingBatchDeleteConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete \(selectedHymnsForDelete.count) Hymn\(selectedHymnsForDelete.count == 1 ? "" : "s")", role: .destructive) {
-                    deleteSelectedHymns()
-                }
-            } message: {
-                let hymnTitles = hymns.filter { selectedHymnsForDelete.contains($0.id) }.map { $0.title }
-                let titleList = hymnTitles.prefix(3).joined(separator: ", ")
-                let remainingCount = max(0, hymnTitles.count - 3)
-                
-                var message = "Are you sure you want to delete the following hymn\(selectedHymnsForDelete.count == 1 ? "" : "s")? This action cannot be undone.\n\n\(titleList)"
-                
-                if remainingCount > 0 {
-                    message += "\n\n...and \(remainingCount) more"
-                }
-                
-                return Text(message)
-            }
+            .deleteConfirmationAlerts(
+                hymns: hymns,
+                showingDeleteConfirmation: $showingDeleteConfirmation,
+                showingBatchDeleteConfirmation: $showingBatchDeleteConfirmation,
+                hymnToDelete: $hymnToDelete,
+                selectedHymnsForDelete: $selectedHymnsForDelete,
+                onDeleteHymn: deleteHymn,
+                onDeleteSelectedHymns: deleteSelectedHymns
+            )
 
         } detail: {
-            if isMultiSelectMode {
-                VStack {
-                    Text("Multi-Select Mode")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.orange)
-                    
-                    Text("\(selectedHymnsForDelete.count) hymn\(selectedHymnsForDelete.count == 1 ? "" : "s") selected")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    
-                    if !selectedHymnsForDelete.isEmpty {
-                        Text("Press Cmd+Delete to delete selected hymns")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.top)
-                    }
-                    
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let hymn = selected {
-                LyricsDetailView(hymn: hymn)
-            } else {
-                Text("Select a hymn")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .sheet(isPresented: $showingEdit) {
-            if let hymn = selected { 
-                HymnEditView(hymn: hymn, onSave: { savedHymn in
-                    try? context.save()
-                    if newHymn == savedHymn {
-                        newHymn = nil
-                    }
-                })
-            }
-        }
-        .onChange(of: showingEdit) { _, isShowing in
-            if !isShowing {
-                cleanupEmptyHymn()
-            }
-        }
-        .sheet(isPresented: $showingImportPreview) {
-            if let preview = importPreview {
-                ImportPreviewView(
-                    preview: preview,
-                    selectedHymns: $selectedHymnsForImport,
-                    duplicateResolution: $duplicateResolution,
-                    onConfirm: confirmImport,
-                    onCancel: cancelImport
-                )
-            }
-        }
-        .sheet(isPresented: $showingExportSelection) {
-            ExportSelectionView(
-                hymns: hymns,
-                selectedHymns: $selectedHymnsForExport,
-                exportFormat: $exportFormat,
-                onConfirm: confirmExport,
-                onCancel: cancelExport
+            DetailView(
+                selected: selected,
+                isMultiSelectMode: isMultiSelectMode,
+                selectedHymnsForDelete: selectedHymnsForDelete
             )
         }
-        .overlay(
-            Group {
-                if operations.isImporting || operations.isExporting {
-                    ProgressOverlay(
-                        isImporting: operations.isImporting,
-                        isExporting: operations.isExporting,
-                        progress: operations.isImporting ? operations.importProgress : operations.exportProgress,
-                        message: operations.progressMessage
-                    )
-                } else if operations.streamingOperations.isStreaming {
-                    StreamingProgressOverlay(
-                        isStreaming: operations.streamingOperations.isStreaming,
-                        progress: operations.streamingOperations.streamingProgress,
-                        message: operations.streamingOperations.streamingMessage
-                    )
+        .contentViewModifiers(
+            hymns: hymns,
+            selected: selected,
+            newHymn: newHymn,
+            context: context,
+            operations: operations,
+            showingEdit: $showingEdit,
+            showingImportPreview: $showingImportPreview,
+            showingExportSelection: $showingExportSelection,
+            importPreview: $importPreview,
+            selectedHymnsForImport: $selectedHymnsForImport,
+            duplicateResolution: $duplicateResolution,
+            selectedHymnsForExport: $selectedHymnsForExport,
+            exportFormat: $exportFormat,
+            onSave: { savedHymn in
+                try? context.save()
+                if newHymn == savedHymn {
+                    newHymn = nil
                 }
-            }
+            },
+            onCleanupEmptyHymn: cleanupEmptyHymn,
+            onConfirmImport: confirmImport,
+            onCancelImport: cancelImport,
+            onConfirmExport: confirmExport,
+            onCancelExport: cancelExport
         )
         .onAppear {
             // Update operations context with the actual context

@@ -28,13 +28,55 @@ struct HymnToolbar {
                         onPresent(hymn)
                     }
                 }) {
-                    Image(systemName: "play.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(.green)
+                    VStack(spacing: 2) {
+                        Image(systemName: "play.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.green)
+                        Text("Present")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .disabled(selected == nil)
                 .help("Present selected hymn")
                 .keyboardShortcut(.return, modifiers: [])
+                
+                // Add Hymn button - prominent placement
+                Button(action: {
+                    let hymn = Hymn(title: "")
+                    context.insert(hymn)
+                    newHymn = hymn
+                    selected = hymn
+                    showingEdit = true
+                }) {
+                    VStack(spacing: 2) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+                        Text("Add")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .help("Add new hymn")
+                .keyboardShortcut("n", modifiers: [.command])
+                
+                // Edit button - prominent placement
+                Button(action: {
+                    showingEdit = true
+                }) {
+                    VStack(spacing: 2) {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.orange)
+                        Text("Edit")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .disabled(selected == nil)
+                .help("Edit selected hymn")
+                .keyboardShortcut("e", modifiers: [.command])
             }
             
             ToolbarItemGroup(placement: .primaryAction) {
@@ -78,19 +120,6 @@ struct HymnToolbar {
                 
                 // Management Menu
                 Menu("Manage") {
-                    Button("Add New Hymn") {
-                        let hymn = Hymn(title: "")
-                        context.insert(hymn)
-                        newHymn = hymn
-                        selected = hymn
-                        showingEdit = true
-                    }
-                    
-                    Button("Edit Selected") {
-                        showingEdit = true
-                    }
-                    .disabled(selected == nil)
-                    
                     Divider()
                     
                     Button(isMultiSelectMode ? "Exit Multi-Select" : "Multi-Select") {
