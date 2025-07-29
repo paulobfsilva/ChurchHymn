@@ -42,10 +42,6 @@ struct HymnListView: View {
                     selected = hymn
                     showingEdit = true
                 }
-                Button("Present") {
-                    selected = hymn
-                    onPresent(hymn)
-                }
                 Divider()
                 Button("Delete", role: .destructive) {
                     if isMultiSelectMode {

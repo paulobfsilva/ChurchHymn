@@ -22,86 +22,103 @@ struct HymnToolbar {
     func createToolbar() -> some ToolbarContent {
         Group {
             ToolbarItemGroup(placement: .navigation) {
-                Button("Add") {
-                    let hymn = Hymn(title: "")
-                    context.insert(hymn)
-                    // Don't save immediately - wait for user to save or cancel
-                    newHymn = hymn
-                    selected = hymn
-                    showingEdit = true
-                }
-                Button("Import") { 
-                    importType = .auto
-                    currentImportType = .auto
-                }
-                .help("Import hymns from text or JSON files")
-                Button("Export Selected") { 
+                // Play button - prominent placement
+                Button(action: {
                     if let hymn = selected {
-                        selectedHymnsForExport = [hymn.id]
-                        showingExportSelection = true
+                        onPresent(hymn)
                     }
+                }) {
+                    Image(systemName: "play.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.green)
                 }
                 .disabled(selected == nil)
-                Button("Export Multiple") { 
-                    showingExportSelection = true
-                }
-                .disabled(hymns.isEmpty)
-                            Button("Export All") { 
-                selectedHymnsForExport = Set(hymns.map { $0.id })
-                showingExportSelection = true
-            }
-            .disabled(hymns.isEmpty)
-            Button("Export Large Collection") { 
-                selectedHymnsForExport = Set(hymns.map { $0.id })
-                showingExportSelection = true
-                // This will automatically use streaming for large collections
-            }
-            .disabled(hymns.isEmpty)
-            .help("Use streaming for large collections (>1000 hymns)")
-                Divider()
-                Button(isMultiSelectMode ? "Exit Multi-Select" : "Multi-Select") {
-                    isMultiSelectMode.toggle()
-                    if !isMultiSelectMode {
-                        selectedHymnsForDelete.removeAll()
-                    }
-                }
-                .foregroundColor(isMultiSelectMode ? .orange : .blue)
-                .keyboardShortcut("m", modifiers: [.command])
-                
-                if isMultiSelectMode {
-                    Button("Delete Selected (\(selectedHymnsForDelete.count))") {
-                        showingBatchDeleteConfirmation = true
-                    }
-                    .disabled(selectedHymnsForDelete.isEmpty)
-                    .foregroundColor(.red)
-                    .keyboardShortcut(.delete, modifiers: [.command])
-                } else {
-                    Button("Delete Selected") {
-                        hymnToDelete = selected
-                        showingDeleteConfirmation = true
-                    }
-                    .disabled(selected == nil)
-                    .foregroundColor(.red)
-                }
+                .help("Present selected hymn")
+                .keyboardShortcut(.return, modifiers: [])
             }
             
             ToolbarItemGroup(placement: .primaryAction) {
-                Button("Edit") {
-                    showingEdit = true
+                // Import Menu
+                Menu("Import") {
+                    Button("Import Files") { 
+                        importType = .auto
+                        currentImportType = .auto
+                    }
+                    .help("Import hymns from text or JSON files")
                 }
-                .disabled(selected == nil)
-                Button("Present") { 
-                    if let hymn = selected { 
-                        onPresent(hymn) 
-                    } 
+                
+                // Export Menu
+                Menu("Export") {
+                    Button("Export Selected") { 
+                        if let hymn = selected {
+                            selectedHymnsForExport = [hymn.id]
+                            showingExportSelection = true
+                        }
+                    }
+                    .disabled(selected == nil)
+                    
+                    Button("Export Multiple") { 
+                        showingExportSelection = true
+                    }
+                    .disabled(hymns.isEmpty)
+                    
+                    Button("Export All") { 
+                        selectedHymnsForExport = Set(hymns.map { $0.id })
+                        showingExportSelection = true
+                    }
+                    .disabled(hymns.isEmpty)
+                    
+                    Button("Export Large Collection") { 
+                        selectedHymnsForExport = Set(hymns.map { $0.id })
+                        showingExportSelection = true
+                    }
+                    .disabled(hymns.isEmpty)
+                    .help("Use streaming for large collections (>1000 hymns)")
                 }
-                .disabled(selected == nil)
-                Button("Delete") {
-                    hymnToDelete = selected
-                    showingDeleteConfirmation = true
+                
+                // Management Menu
+                Menu("Manage") {
+                    Button("Add New Hymn") {
+                        let hymn = Hymn(title: "")
+                        context.insert(hymn)
+                        newHymn = hymn
+                        selected = hymn
+                        showingEdit = true
+                    }
+                    
+                    Button("Edit Selected") {
+                        showingEdit = true
+                    }
+                    .disabled(selected == nil)
+                    
+                    Divider()
+                    
+                    Button(isMultiSelectMode ? "Exit Multi-Select" : "Multi-Select") {
+                        isMultiSelectMode.toggle()
+                        if !isMultiSelectMode {
+                            selectedHymnsForDelete.removeAll()
+                        }
+                    }
+                    .foregroundColor(isMultiSelectMode ? .orange : .blue)
+                    .keyboardShortcut("m", modifiers: [.command])
+                    
+                    if isMultiSelectMode {
+                        Button("Delete Selected (\(selectedHymnsForDelete.count))") {
+                            showingBatchDeleteConfirmation = true
+                        }
+                        .disabled(selectedHymnsForDelete.isEmpty)
+                        .foregroundColor(.red)
+                        .keyboardShortcut(.delete, modifiers: [.command])
+                    } else {
+                        Button("Delete Selected") {
+                            hymnToDelete = selected
+                            showingDeleteConfirmation = true
+                        }
+                        .disabled(selected == nil)
+                        .foregroundColor(.red)
+                        .keyboardShortcut(.delete, modifiers: [])
+                    }
                 }
-                .disabled(selected == nil)
-                .keyboardShortcut(.delete, modifiers: [])
             }
         }
     }
