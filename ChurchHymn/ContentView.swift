@@ -285,83 +285,87 @@ struct ContentView: View {
             
             // Process each file
             Task {
-                var totalImported = 0
-                var totalSkipped = 0
-                var errors: [String] = []
+                var allHymns: [ImportPreviewHymn] = []
+                var allDuplicates: [ImportPreviewHymn] = []
+                var allErrors: [String] = []
                 
-                for url in urls {
+                for (index, url) in urls.enumerated() {
                     // Auto-detect file type and size for intelligent import
                     let actualImportType = detectImportType(for: url, requestedType: importType)
                     
-                    switch actualImportType {
-                    case .plainText:
-                        operations.importPlainTextHymn(
-                            from: url,
-                            hymns: hymns,
-                            onComplete: { preview in
-                                totalImported += preview.hymns.count
-                                totalSkipped += preview.duplicates.count
-                                errors.append(contentsOf: preview.errors)
+                    do {
+                        let preview: ImportPreview = try await withCheckedThrowingContinuation { continuation in
+                            switch actualImportType {
+                            case .plainText:
+                                operations.importPlainTextHymn(
+                                    from: url,
+                                    hymns: hymns,
+                                    onComplete: { preview in
+                                        continuation.resume(returning: preview)
+                                    },
+                                    onError: { error in
+                                        continuation.resume(throwing: error)
+                                    }
+                                )
+                            case .json:
+                                // Check file size to determine if streaming is needed
+                                let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+                                let largeFileThreshold = 10 * 1024 * 1024 // 10MB
                                 
-                                // Show preview for this file
-                                importPreview = preview
-                                showingImportPreview = true
-                            },
-                            onError: { error in
-                                errors.append("Error importing \(url.lastPathComponent): \(error.localizedDescription)")
+                                if fileSize > largeFileThreshold {
+                                    operations.importLargeJSONStreaming(
+                                        from: url,
+                                        hymns: hymns,
+                                        onComplete: { preview in
+                                            continuation.resume(returning: preview)
+                                        },
+                                        onError: { error in
+                                            continuation.resume(throwing: error)
+                                        }
+                                    )
+                                } else {
+                                    operations.importBatchJSON(
+                                        from: url,
+                                        hymns: hymns,
+                                        onComplete: { preview in
+                                            continuation.resume(returning: preview)
+                                        },
+                                        onError: { error in
+                                            continuation.resume(throwing: error)
+                                        }
+                                    )
+                                }
+                            case .auto:
+                                continuation.resume(throwing: ImportError.unknown("Auto detection failed"))
                             }
-                        )
-                    case .json:
-                        // Check file size to determine if streaming is needed
-                        let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
-                        let largeFileThreshold = 10 * 1024 * 1024 // 10MB
-                        
-                        if fileSize > largeFileThreshold {
-                            // Use streaming for large files
-                            operations.importLargeJSONStreaming(
-                                from: url,
-                                hymns: hymns,
-                                onComplete: { preview in
-                                    totalImported += preview.hymns.count
-                                    totalSkipped += preview.duplicates.count
-                                    errors.append(contentsOf: preview.errors)
-                                    
-                                    // Show preview for this file
-                                    importPreview = preview
-                                    showingImportPreview = true
-                                },
-                                onError: { error in
-                                    errors.append("Error importing \(url.lastPathComponent): \(error.localizedDescription)")
-                                }
-                            )
-                        } else {
-                            operations.importBatchJSON(
-                                from: url,
-                                hymns: hymns,
-                                onComplete: { preview in
-                                    totalImported += preview.hymns.count
-                                    totalSkipped += preview.duplicates.count
-                                    errors.append(contentsOf: preview.errors)
-                                    
-                                    // Show preview for this file
-                                    importPreview = preview
-                                    showingImportPreview = true
-                                },
-                                onError: { error in
-                                    errors.append("Error importing \(url.lastPathComponent): \(error.localizedDescription)")
-                                }
-                            )
                         }
-                    case .auto:
-                        return
+                        
+                        // Collect results from this file
+                        allHymns.append(contentsOf: preview.hymns)
+                        allDuplicates.append(contentsOf: preview.duplicates)
+                        allErrors.append(contentsOf: preview.errors)
+                        
+                    } catch let error as ImportError {
+                        allErrors.append("Error importing \(url.lastPathComponent): \(error.localizedDescription)")
+                    } catch {
+                        allErrors.append("Unexpected error importing \(url.lastPathComponent): \(error.localizedDescription)")
                     }
                 }
                 
-                // Show final summary
-                if errors.isEmpty {
-                    showSuccess("Successfully imported \(totalImported) hymns. \(totalSkipped) duplicates skipped.")
-                } else {
-                    showError(.unknown("Import completed with \(errors.count) errors:\n" + errors.joined(separator: "\n")))
+                // Show combined preview for all files
+                let combinedPreview = ImportPreview(
+                    hymns: allHymns,
+                    duplicates: allDuplicates,
+                    errors: allErrors,
+                    fileName: urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) files"
+                )
+                
+                await MainActor.run {
+                    operations.isImporting = false  // Reset the importing state
+                    operations.importProgress = 0.0 // Reset progress
+                    operations.progressMessage = "" // Clear message
+                    importPreview = combinedPreview
+                    showingImportPreview = true
                 }
             }
             
@@ -369,6 +373,9 @@ struct ContentView: View {
             let nsError = error as NSError
             let specificError = getSpecificFileError(nsError)
             showError(specificError)
+            operations.isImporting = false  // Reset the importing state on error
+            operations.importProgress = 0.0 // Reset progress
+            operations.progressMessage = "" // Clear message
         }
         
         currentImportType = nil
@@ -494,6 +501,9 @@ struct ContentView: View {
         showingImportPreview = false
         importPreview = nil
         selectedHymnsForImport.removeAll()
+        operations.isImporting = false  // Reset the importing state
+        operations.importProgress = 0.0 // Reset progress
+        operations.progressMessage = "" // Clear message
     }
     
     private func processFinalImport(validHymns: [Hymn], duplicates: [DuplicateHymn], errors: [String]) {
