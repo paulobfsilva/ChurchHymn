@@ -91,7 +91,7 @@ struct ContentView: View {
                     importType = nil
                 } }),
                 allowedContentTypes: importType == .auto ? [UTType.json, UTType.plainText] : (importType == .json ? [UTType.json] : [UTType.plainText]),
-                allowsMultipleSelection: false
+                allowsMultipleSelection: true
             ) { result in
                 let importTypeToUse = importType ?? currentImportType
                 handleImportResult(result, importType: importTypeToUse)
@@ -273,8 +273,8 @@ struct ContentView: View {
         
         switch result {
         case .success(let urls):
-            guard let url = urls.first else {
-                showError(.unknown("No file selected"))
+            guard !urls.isEmpty else {
+                showError(.unknown("No files selected"))
                 return
             }
             
@@ -283,57 +283,86 @@ struct ContentView: View {
                 return
             }
             
-            // Auto-detect file type and size for intelligent import
-            let actualImportType = detectImportType(for: url, requestedType: importType)
-            
-            switch actualImportType {
-            case .plainText:
-                operations.importPlainTextHymn(
-                    from: url,
-                    hymns: hymns,
-                    onComplete: { preview in
-                        importPreview = preview
-                        showingImportPreview = true
-                    },
-                    onError: { error in
-                        showError(error)
-                    }
-                )
-            case .json:
-                // Check file size to determine if streaming is needed
-                let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
-                let largeFileThreshold = 10 * 1024 * 1024 // 10MB
+            // Process each file
+            Task {
+                var totalImported = 0
+                var totalSkipped = 0
+                var errors: [String] = []
                 
-                if fileSize > largeFileThreshold {
-                    // Use streaming for large files
-                    operations.importLargeJSONStreaming(
-                        from: url,
-                        hymns: hymns,
-                        onComplete: { preview in
-                            importPreview = preview
-                            showingImportPreview = true
-                        },
-                        onError: { error in
-                            showError(error)
+                for url in urls {
+                    // Auto-detect file type and size for intelligent import
+                    let actualImportType = detectImportType(for: url, requestedType: importType)
+                    
+                    switch actualImportType {
+                    case .plainText:
+                        operations.importPlainTextHymn(
+                            from: url,
+                            hymns: hymns,
+                            onComplete: { preview in
+                                totalImported += preview.hymns.count
+                                totalSkipped += preview.duplicates.count
+                                errors.append(contentsOf: preview.errors)
+                                
+                                // Show preview for this file
+                                importPreview = preview
+                                showingImportPreview = true
+                            },
+                            onError: { error in
+                                errors.append("Error importing \(url.lastPathComponent): \(error.localizedDescription)")
+                            }
+                        )
+                    case .json:
+                        // Check file size to determine if streaming is needed
+                        let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+                        let largeFileThreshold = 10 * 1024 * 1024 // 10MB
+                        
+                        if fileSize > largeFileThreshold {
+                            // Use streaming for large files
+                            operations.importLargeJSONStreaming(
+                                from: url,
+                                hymns: hymns,
+                                onComplete: { preview in
+                                    totalImported += preview.hymns.count
+                                    totalSkipped += preview.duplicates.count
+                                    errors.append(contentsOf: preview.errors)
+                                    
+                                    // Show preview for this file
+                                    importPreview = preview
+                                    showingImportPreview = true
+                                },
+                                onError: { error in
+                                    errors.append("Error importing \(url.lastPathComponent): \(error.localizedDescription)")
+                                }
+                            )
+                        } else {
+                            operations.importBatchJSON(
+                                from: url,
+                                hymns: hymns,
+                                onComplete: { preview in
+                                    totalImported += preview.hymns.count
+                                    totalSkipped += preview.duplicates.count
+                                    errors.append(contentsOf: preview.errors)
+                                    
+                                    // Show preview for this file
+                                    importPreview = preview
+                                    showingImportPreview = true
+                                },
+                                onError: { error in
+                                    errors.append("Error importing \(url.lastPathComponent): \(error.localizedDescription)")
+                                }
+                            )
                         }
-                    )
-                } else {
-                    // Use regular import for smaller files
-                    operations.importBatchJSON(
-                        from: url,
-                        hymns: hymns,
-                        onComplete: { preview in
-                            importPreview = preview
-                            showingImportPreview = true
-                        },
-                        onError: { error in
-                            showError(error)
-                        }
-                    )
+                    case .auto:
+                        return
+                    }
                 }
-            case .auto:
-                // This should not happen as auto is converted to actual type above
-                showError(.unknown("Auto detection failed"))
+                
+                // Show final summary
+                if errors.isEmpty {
+                    showSuccess("Successfully imported \(totalImported) hymns. \(totalSkipped) duplicates skipped.")
+                } else {
+                    showError(.unknown("Import completed with \(errors.count) errors:\n" + errors.joined(separator: "\n")))
+                }
             }
             
         case .failure(let error):
