@@ -11,10 +11,13 @@ struct HymnEditView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var hymn: Hymn
     var onSave: ((Hymn) -> Void)?
+    @State private var songNumberText: String = ""
 
     init(hymn: Hymn, onSave: ((Hymn) -> Void)? = nil) {
         self._hymn = Bindable(wrappedValue: hymn)
         self.onSave = onSave
+        // Initialize songNumberText with the current value if it exists
+        self._songNumberText = State(initialValue: hymn.songNumber.map(String.init) ?? "")
     }
 
     var body: some View {
@@ -29,6 +32,19 @@ struct HymnEditView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                 
                 HStack(spacing: 12) {
+                    TextField("Hymn Number", text: $songNumberText)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .onChange(of: songNumberText) { oldValue, newValue in
+                            // Only allow numeric input
+                            let filtered = newValue.filter { $0.isNumber }
+                            if filtered != newValue {
+                                songNumberText = filtered
+                            }
+                            // Convert to Int if not empty
+                            hymn.songNumber = filtered.isEmpty ? nil : Int(filtered)
+                        }
+                        .frame(maxWidth: 120)
+                    
                     TextField("Key (e.g. G Major)", text: $hymn.musicalKey.unwrap(or: ""))
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                     

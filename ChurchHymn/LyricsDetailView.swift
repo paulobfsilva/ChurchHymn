@@ -24,10 +24,16 @@ struct LyricsDetailView: View {
                 .padding()
             }
             Divider()
-            // Footer with copyright and key
+            // Footer with copyright, hymn number, and key
             HStack {
                 Text(hymn.copyright ?? "")
                     .font(.caption)
+                Spacer()
+                if let number = hymn.songNumber {
+                    Text("#\(number)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
                 Text(hymn.musicalKey ?? "")
                     .font(.caption)

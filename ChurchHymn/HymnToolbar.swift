@@ -94,6 +94,30 @@ struct HymnToolbar {
                 .disabled(selected == nil)
                 .help("Edit selected hymn")
                 .keyboardShortcut("e", modifiers: [.command])
+                
+                // Delete button - prominent placement
+                Button(action: {
+                    if isMultiSelectMode {
+                        if !selectedHymnsForDelete.isEmpty {
+                            showingBatchDeleteConfirmation = true
+                        }
+                    } else if let hymn = selected {
+                        hymnToDelete = hymn
+                        showingDeleteConfirmation = true
+                    }
+                }) {
+                    VStack(spacing: 2) {
+                        Image(systemName: "trash.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.red)
+                        Text("Delete")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .disabled(isMultiSelectMode ? selectedHymnsForDelete.isEmpty : selected == nil)
+                .help(isMultiSelectMode ? "Delete selected hymns" : "Delete selected hymn")
+                .keyboardShortcut(.delete, modifiers: [.command])
             }
             
             ToolbarItemGroup(placement: .primaryAction) {
@@ -128,8 +152,6 @@ struct HymnToolbar {
                 
                 // Management Menu
                 Menu("Manage") {
-                    Divider()
-                    
                     Button(isMultiSelectMode ? "Exit Multi-Select" : "Multi-Select") {
                         isMultiSelectMode.toggle()
                         if !isMultiSelectMode {
@@ -138,23 +160,6 @@ struct HymnToolbar {
                     }
                     .foregroundColor(isMultiSelectMode ? .orange : .blue)
                     .keyboardShortcut("m", modifiers: [.command])
-                    
-                    if isMultiSelectMode {
-                        Button("Delete Selected (\(selectedHymnsForDelete.count))") {
-                            showingBatchDeleteConfirmation = true
-                        }
-                        .disabled(selectedHymnsForDelete.isEmpty)
-                        .foregroundColor(.red)
-                        .keyboardShortcut(.delete, modifiers: [.command])
-                    } else {
-                        Button("Delete Selected") {
-                            hymnToDelete = selected
-                            showingDeleteConfirmation = true
-                        }
-                        .disabled(selected == nil)
-                        .foregroundColor(.red)
-                        .keyboardShortcut(.delete, modifiers: [])
-                    }
                 }
             }
         }

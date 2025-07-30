@@ -436,7 +436,8 @@ struct ContentView: View {
                 copyright: previewHymn.copyright,
                 author: previewHymn.author,
                 tags: previewHymn.tags,
-                notes: previewHymn.notes
+                notes: previewHymn.notes,
+                songNumber: previewHymn.songNumber
             )
             hymnsToImport.append(hymn)
         }
@@ -450,7 +451,8 @@ struct ContentView: View {
                     copyright: previewHymn.copyright,
                     author: previewHymn.author,
                     tags: previewHymn.tags,
-                    notes: previewHymn.notes
+                    notes: previewHymn.notes,
+                    songNumber: previewHymn.songNumber
                 )
                 duplicatesToProcess.append(DuplicateHymn(existing: existingHymn, new: newHymn))
             }
@@ -608,6 +610,9 @@ struct ContentView: View {
         if (existing.tags?.isEmpty ?? true) && !(new.tags?.isEmpty ?? true) {
             existing.tags = new.tags
         }
+        if existing.songNumber == nil && new.songNumber != nil {
+            existing.songNumber = new.songNumber
+        }
     }
     
     private func replaceHymnData(existing: Hymn, new: Hymn) {
@@ -617,6 +622,7 @@ struct ContentView: View {
         existing.copyright = new.copyright
         existing.notes = new.notes
         existing.tags = new.tags
+        existing.songNumber = new.songNumber
     }
     
     // MARK: - File Type Detection

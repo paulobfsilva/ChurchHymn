@@ -19,6 +19,7 @@ class Hymn: Identifiable, Codable {
     var author: String?
     var tags: [String]?
     var notes: String?
+    var songNumber: Int?
     var modelVersion: Int
 
     // All fields except id and title are optional for migration safety and extensibility.
@@ -31,7 +32,8 @@ class Hymn: Identifiable, Codable {
         author: String? = nil,
         tags: [String]? = nil,
         notes: String? = nil,
-        modelVersion: Int = 1
+        songNumber: Int? = nil,
+        modelVersion: Int = 2
     ) {
         self.id = id
         self.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -41,6 +43,7 @@ class Hymn: Identifiable, Codable {
         self.author = author?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.tags = tags?.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         self.notes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.songNumber = songNumber
         self.modelVersion = modelVersion
     }
 
@@ -72,7 +75,7 @@ class Hymn: Identifiable, Codable {
 
     // MARK: - Codable
     enum CodingKeys: String, CodingKey {
-        case id, title, lyrics, musicalKey, copyright, author, tags, notes, modelVersion
+        case id, title, lyrics, musicalKey, copyright, author, tags, notes, songNumber, modelVersion
     }
 
     required convenience init(from decoder: Decoder) throws {
@@ -85,7 +88,8 @@ class Hymn: Identifiable, Codable {
         let author = try container.decodeIfPresent(String.self, forKey: .author)
         let tags = try container.decodeIfPresent([String].self, forKey: .tags)
         let notes = try container.decodeIfPresent(String.self, forKey: .notes)
-        let modelVersion = try container.decodeIfPresent(Int.self, forKey: .modelVersion) ?? 1
+        let songNumber = try container.decodeIfPresent(Int.self, forKey: .songNumber)
+        let modelVersion = try container.decodeIfPresent(Int.self, forKey: .modelVersion) ?? 2
         self.init(
             id: id,
             title: title,
@@ -95,6 +99,7 @@ class Hymn: Identifiable, Codable {
             author: author,
             tags: tags,
             notes: notes,
+            songNumber: songNumber,
             modelVersion: modelVersion
         )
     }
@@ -109,6 +114,7 @@ class Hymn: Identifiable, Codable {
         try container.encodeIfPresent(author, forKey: .author)
         try container.encodeIfPresent(tags, forKey: .tags)
         try container.encodeIfPresent(notes, forKey: .notes)
+        try container.encodeIfPresent(songNumber, forKey: .songNumber)
         try container.encode(modelVersion, forKey: .modelVersion)
     }
 }
@@ -123,12 +129,14 @@ extension Hymn {
     // MARK: - Plain Text Import/Export
 
     static func fromPlainText(_ text: String) -> Hymn? {
+        print("Starting plain text import...")
         let lines = text.components(separatedBy: .newlines)
         var title: String?
         var lyricsLines: [String] = []
         var key: String?
         var author: String?
         var copyright: String?
+        var songNumber: Int?
         var foundTitle = false
         var inMetadata = true
 
@@ -145,14 +153,29 @@ extension Hymn {
             
             // Handle metadata lines
             if trimmed.hasPrefix("#") {
+                print("Processing metadata line: \(trimmed)")
                 if trimmed.hasPrefix("#Key:") { 
-                    key = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces) 
+                    key = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                    print("Found key: \(key ?? "nil")")
                 }
                 else if trimmed.hasPrefix("#Author:") { 
-                    author = trimmed.dropFirst(8).trimmingCharacters(in: .whitespaces) 
+                    author = trimmed.dropFirst(8).trimmingCharacters(in: .whitespaces)
+                    print("Found author: \(author ?? "nil")")
                 }
                 else if trimmed.hasPrefix("#Copyright:") { 
-                    copyright = trimmed.dropFirst(10).trimmingCharacters(in: .whitespaces) 
+                    copyright = trimmed.dropFirst(10).trimmingCharacters(in: .whitespaces)
+                    print("Found copyright: \(copyright ?? "nil")")
+                }
+                else if trimmed.hasPrefix("#Number:") {
+                    print("Found number line: \(trimmed)")
+                    let numStr = trimmed.dropFirst(8).trimmingCharacters(in: .whitespaces)
+                    print("Extracted number string: \(numStr)")
+                    if let num = Int(numStr) {
+                        songNumber = num
+                        print("Successfully parsed number: \(num)")
+                    } else {
+                        print("Failed to parse number from: \(numStr)")
+                    }
                 }
                 continue
             }
@@ -161,6 +184,7 @@ extension Hymn {
             if !foundTitle && !trimmed.hasPrefix("#") {
                 title = trimmed
                 foundTitle = true
+                print("Found title: \(trimmed)")
                 continue
             }
             
@@ -172,15 +196,26 @@ extension Hymn {
         
         // Validate that we have a title
         guard let hymnTitle = title, !hymnTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { 
+            print("No valid title found")
             return nil 
         }
         
         let lyrics = lyricsLines.drop(while: { $0.trimmingCharacters(in: .whitespaces).isEmpty }).joined(separator: "\n")
-        return Hymn(title: hymnTitle, lyrics: lyrics.isEmpty ? nil : lyrics, musicalKey: key, copyright: copyright, author: author)
+        let hymn = Hymn(
+            title: hymnTitle,
+            lyrics: lyrics.isEmpty ? nil : lyrics,
+            musicalKey: key,
+            copyright: copyright,
+            author: author,
+            songNumber: songNumber
+        )
+        print("Created hymn with number: \(hymn.songNumber?.description ?? "nil")")
+        return hymn
     }
 
     func toPlainText() -> String {
         var lines: [String] = [title]
+        if let number = songNumber { lines.append("#Number: \(number)") }
         if let key = musicalKey, !key.isEmpty { lines.append("#Key: \(key)") }
         if let author = author, !author.isEmpty { lines.append("#Author: \(author)") }
         if let copyright = copyright, !copyright.isEmpty { lines.append("#Copyright: \(copyright)") }

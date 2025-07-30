@@ -3,13 +3,14 @@
 ## Plain Text Format (Single Hymn)
 
 - The first non-empty, non-`#` line is the hymn title.
-- Metadata lines start with `#` and a keyword (e.g., `#Key:`, `#Author:`, `#Copyright:`).
+- Metadata lines start with `#` and a keyword (e.g., `#Number:`, `#Key:`, `#Author:`, `#Copyright:`).
 - Lyrics follow, with verses and choruses separated by empty lines.
 - Chorus blocks start with the word `CHORUS` (case-insensitive) on their own line.
 
 **Example:**
 ```
 Amazing Grace
+#Number: 123
 #Key: G Major
 #Author: John Newton
 #Copyright: Public Domain
@@ -34,7 +35,7 @@ Praise God, praise God.
 ```
 
 **Parsing Rules:**
-- Lines starting with `#Key:`, `#Author:`, `#Copyright:` are parsed as metadata.
+- Lines starting with `#Number:`, `#Key:`, `#Author:`, `#Copyright:` are parsed as metadata.
 - The first non-empty, non-`#` line is the title.
 - Lyrics are everything after the metadata, with blocks separated by empty lines.
 - Chorus blocks are recognized by a line with `CHORUS`.
@@ -47,6 +48,7 @@ Praise God, praise God.
 ```json
 {
   "title": "Amazing Grace",
+  "songNumber": 123,
   "author": "John Newton",
   "copyright": "Public Domain",
   "musicalKey": "G Major",
@@ -61,6 +63,7 @@ Praise God, praise God.
 [
   {
     "title": "Amazing Grace",
+    "songNumber": 123,
     "author": "John Newton",
     "copyright": "Public Domain",
     "musicalKey": "G Major",
@@ -70,6 +73,7 @@ Praise God, praise God.
   },
   {
     "title": "How Great Thou Art",
+    "songNumber": 124,
     "author": "Carl Boberg",
     "copyright": "Public Domain",
     "musicalKey": "A Major",
@@ -82,6 +86,7 @@ Praise God, praise God.
 
 **Schema Notes:**
 - All fields except `title` are optional.
+- `songNumber` is an optional integer field.
 - `lyrics` is a single string, with blocks separated by double newlines (`\n\n`).
 - `tags` is an array of strings.
 - Batch import/export is a JSON array of hymn objects.
@@ -99,6 +104,6 @@ Praise God, praise God.
 **For developers:**  
 - Update this file if the format changes.
 - See code for parsing/serialization logic.
+- Current model version: 2 (added songNumber field)
 
-This file will serve as a reference for users and developers.  
-**Next step:** I will begin implementing the import/export logic for these formats. Let me know if you want to review or adjust the documentation! 
+This file will serve as a reference for users and developers. 

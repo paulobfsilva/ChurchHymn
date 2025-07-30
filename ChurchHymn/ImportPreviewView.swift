@@ -11,6 +11,7 @@ struct ImportPreviewHymn: Identifiable {
     let copyright: String?
     let notes: String?
     let tags: [String]?
+    let songNumber: Int?
     let isDuplicate: Bool
     let existingHymn: Hymn?
     
@@ -22,6 +23,7 @@ struct ImportPreviewHymn: Identifiable {
         self.copyright = hymn.copyright
         self.notes = hymn.notes
         self.tags = hymn.tags
+        self.songNumber = hymn.songNumber
         self.isDuplicate = isDuplicate
         self.existingHymn = existingHymn
     }
