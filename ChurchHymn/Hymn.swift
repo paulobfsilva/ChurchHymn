@@ -129,23 +129,45 @@ extension Hymn {
         var key: String?
         var author: String?
         var copyright: String?
+        var foundTitle = false
         var inMetadata = true
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty { lyricsLines.append(line); continue }
-            if inMetadata && trimmed.hasPrefix("#") {
-                if trimmed.hasPrefix("#Key:") { key = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces) }
-                else if trimmed.hasPrefix("#Author:") { author = trimmed.dropFirst(8).trimmingCharacters(in: .whitespaces) }
-                else if trimmed.hasPrefix("#Copyright:") { copyright = trimmed.dropFirst(10).trimmingCharacters(in: .whitespaces) }
+            
+            // Handle empty lines
+            if trimmed.isEmpty { 
+                if foundTitle {
+                    lyricsLines.append(line)
+                }
+                continue 
+            }
+            
+            // Handle metadata lines
+            if trimmed.hasPrefix("#") {
+                if trimmed.hasPrefix("#Key:") { 
+                    key = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces) 
+                }
+                else if trimmed.hasPrefix("#Author:") { 
+                    author = trimmed.dropFirst(8).trimmingCharacters(in: .whitespaces) 
+                }
+                else if trimmed.hasPrefix("#Copyright:") { 
+                    copyright = trimmed.dropFirst(10).trimmingCharacters(in: .whitespaces) 
+                }
                 continue
             }
-            if title == nil && !trimmed.hasPrefix("#") {
+            
+            // Handle title (first non-empty, non-metadata line)
+            if !foundTitle && !trimmed.hasPrefix("#") {
                 title = trimmed
-                inMetadata = false
+                foundTitle = true
                 continue
             }
-            lyricsLines.append(line)
+            
+            // Everything after title is lyrics
+            if foundTitle {
+                lyricsLines.append(line)
+            }
         }
         
         // Validate that we have a title
