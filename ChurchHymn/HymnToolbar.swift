@@ -61,6 +61,23 @@ struct HymnToolbar {
                 .help("Add new hymn")
                 .keyboardShortcut("n", modifiers: [.command])
                 
+                // Import button - prominent placement
+                Button(action: {
+                    importType = .auto
+                    currentImportType = .auto
+                }) {
+                    VStack(spacing: 2) {
+                        Image(systemName: "square.and.arrow.down.fill")
+                            .font(.title2)
+                            .foregroundColor(.purple)
+                        Text("Import")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .help("Import hymns from text or JSON files")
+                .keyboardShortcut("i", modifiers: [.command])
+                
                 // Edit button - prominent placement
                 Button(action: {
                     showingEdit = true
@@ -80,15 +97,6 @@ struct HymnToolbar {
             }
             
             ToolbarItemGroup(placement: .primaryAction) {
-                // Import Menu
-                Menu("Import") {
-                    Button("Import Files") { 
-                        importType = .auto
-                        currentImportType = .auto
-                    }
-                    .help("Import hymns from text or JSON files")
-                }
-                
                 // Export Menu
                 Menu("Export") {
                     Button("Export Selected") { 
