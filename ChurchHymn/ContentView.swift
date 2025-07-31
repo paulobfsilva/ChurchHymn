@@ -289,7 +289,7 @@ struct ContentView: View {
                 var allDuplicates: [ImportPreviewHymn] = []
                 var allErrors: [String] = []
                 
-                for (index, url) in urls.enumerated() {
+                for (_, url) in urls.enumerated() {
                     // Auto-detect file type and size for intelligent import
                     let actualImportType = detectImportType(for: url, requestedType: importType)
                     

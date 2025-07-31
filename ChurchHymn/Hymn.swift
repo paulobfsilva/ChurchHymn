@@ -137,8 +137,9 @@ extension Hymn {
         var author: String?
         var copyright: String?
         var songNumber: Int?
+        var tags: [String]?
+        var notes: String?
         var foundTitle = false
-        var inMetadata = true
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -154,28 +155,42 @@ extension Hymn {
             // Handle metadata lines
             if trimmed.hasPrefix("#") {
                 print("Processing metadata line: \(trimmed)")
-                if trimmed.hasPrefix("#Key:") { 
-                    key = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                let processMetadata = { (prefix: String, dropCount: Int) -> String? in
+                    trimmed.hasPrefix(prefix) ? trimmed.dropFirst(dropCount).trimmingCharacters(in: .whitespaces) : nil
+                }
+                
+                if let keyValue = processMetadata("#Key:", 5) { 
+                    key = keyValue.isEmpty ? nil : keyValue
                     print("Found key: \(key ?? "nil")")
                 }
-                else if trimmed.hasPrefix("#Author:") { 
-                    author = trimmed.dropFirst(8).trimmingCharacters(in: .whitespaces)
+                else if let authorValue = processMetadata("#Author:", 8) { 
+                    author = authorValue.isEmpty ? nil : authorValue
                     print("Found author: \(author ?? "nil")")
                 }
-                else if trimmed.hasPrefix("#Copyright:") { 
-                    copyright = trimmed.dropFirst(10).trimmingCharacters(in: .whitespaces)
+                else if let copyrightValue = processMetadata("#Copyright:", 10) { 
+                    copyright = copyrightValue.isEmpty ? nil : copyrightValue
                     print("Found copyright: \(copyright ?? "nil")")
                 }
-                else if trimmed.hasPrefix("#Number:") {
-                    print("Found number line: \(trimmed)")
-                    let numStr = trimmed.dropFirst(8).trimmingCharacters(in: .whitespaces)
-                    print("Extracted number string: \(numStr)")
-                    if let num = Int(numStr) {
+                else if let numberStr = processMetadata("#Number:", 8) {
+                    print("Found number line: \(numberStr)")
+                    if !numberStr.isEmpty, let num = Int(numberStr) {
                         songNumber = num
                         print("Successfully parsed number: \(num)")
                     } else {
-                        print("Failed to parse number from: \(numStr)")
+                        print("Failed to parse number from: \(numberStr)")
                     }
+                }
+                else if let tagsValue = processMetadata("#Tags:", 6) {
+                    if !tagsValue.isEmpty {
+                        tags = tagsValue.components(separatedBy: ",")
+                            .map { $0.trimmingCharacters(in: .whitespaces) }
+                            .filter { !$0.isEmpty }
+                        print("Found tags: \(tags ?? [])")
+                    }
+                }
+                else if let notesValue = processMetadata("#Notes:", 7) {
+                    notes = notesValue.isEmpty ? nil : notesValue
+                    print("Found notes: \(notes ?? "nil")")
                 }
                 continue
             }
@@ -195,7 +210,7 @@ extension Hymn {
         }
         
         // Validate that we have a title
-        guard let hymnTitle = title, !hymnTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { 
+        guard let hymnTitle = title, !hymnTitle.trimmingCharacters(in: .whitespaces).isEmpty else { 
             print("No valid title found")
             return nil 
         }
@@ -207,6 +222,8 @@ extension Hymn {
             musicalKey: key,
             copyright: copyright,
             author: author,
+            tags: tags,
+            notes: notes,
             songNumber: songNumber
         )
         print("Created hymn with number: \(hymn.songNumber?.description ?? "nil")")
@@ -219,6 +236,8 @@ extension Hymn {
         if let key = musicalKey, !key.isEmpty { lines.append("#Key: \(key)") }
         if let author = author, !author.isEmpty { lines.append("#Author: \(author)") }
         if let copyright = copyright, !copyright.isEmpty { lines.append("#Copyright: \(copyright)") }
+        if let tags = tags, !tags.isEmpty { lines.append("#Tags: \(tags.joined(separator: ", "))") }
+        if let notes = notes, !notes.isEmpty { lines.append("#Notes: \(notes)") }
         if let lyrics = lyrics, !lyrics.isEmpty {
             lines.append("")
             lines.append(lyrics)

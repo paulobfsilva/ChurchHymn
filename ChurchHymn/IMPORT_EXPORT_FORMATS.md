@@ -3,7 +3,13 @@
 ## Plain Text Format (Single Hymn)
 
 - The first non-empty, non-`#` line is the hymn title.
-- Metadata lines start with `#` and a keyword (e.g., `#Number:`, `#Key:`, `#Author:`, `#Copyright:`).
+- Metadata lines start with `#` and a keyword:
+  - `#Number:` - Song number (integer)
+  - `#Key:` - Musical key
+  - `#Author:` - Author name
+  - `#Copyright:` - Copyright information
+  - `#Tags:` - Comma-separated list of tags
+  - `#Notes:` - Additional notes or comments
 - Lyrics follow, with verses and choruses separated by empty lines.
 - Chorus blocks start with the word `CHORUS` (case-insensitive) on their own line.
 
@@ -14,6 +20,8 @@ Amazing Grace
 #Key: G Major
 #Author: John Newton
 #Copyright: Public Domain
+#Tags: classic, grace, hymn
+#Notes: Written in 1772
 
 Amazing grace! how sweet the sound
 That saved a wretch like me!
@@ -35,7 +43,9 @@ Praise God, praise God.
 ```
 
 **Parsing Rules:**
-- Lines starting with `#Number:`, `#Key:`, `#Author:`, `#Copyright:` are parsed as metadata.
+- All metadata lines starting with `#` must appear before the lyrics.
+- Empty metadata values are ignored (e.g., `#Key: ` will not set a key).
+- Tags are split by commas and whitespace is trimmed from each tag.
 - The first non-empty, non-`#` line is the title.
 - Lyrics are everything after the metadata, with blocks separated by empty lines.
 - Chorus blocks are recognized by a line with `CHORUS`.
@@ -53,8 +63,8 @@ Praise God, praise God.
   "copyright": "Public Domain",
   "musicalKey": "G Major",
   "lyrics": "Amazing grace! how sweet the sound\\nThat saved a wretch like me!\\nI once was lost, but now am found,\\nWas blind, but now I see.\\n\\nCHORUS\\nPraise God, praise God,\\nPraise God, praise God.\\n\\n'Twas grace that taught my heart to fear,\\nAnd grace my fears relieved;\\nHow precious did that grace appear\\nThe hour I first believed.\\n\\nCHORUS\\nPraise God, praise God,\\nPraise God, praise God.",
-  "tags": ["classic", "grace"],
-  "notes": ""
+  "tags": ["classic", "grace", "hymn"],
+  "notes": "Written in 1772"
 }
 ```
 
@@ -69,41 +79,25 @@ Praise God, praise God.
     "musicalKey": "G Major",
     "lyrics": "...",
     "tags": ["classic", "grace"],
-    "notes": ""
+    "notes": "Written in 1772"
   },
   {
     "title": "How Great Thou Art",
     "songNumber": 124,
     "author": "Carl Boberg",
     "copyright": "Public Domain",
-    "musicalKey": "A Major",
+    "musicalKey": "E Major",
     "lyrics": "...",
-    "tags": ["worship"],
-    "notes": ""
+    "tags": ["classic", "worship"],
+    "notes": "Swedish origin"
   }
 ]
 ```
 
-**Schema Notes:**
-- All fields except `title` are optional.
-- `songNumber` is an optional integer field.
-- `lyrics` is a single string, with blocks separated by double newlines (`\n\n`).
-- `tags` is an array of strings.
-- Batch import/export is a JSON array of hymn objects.
-
----
-
-## Summary
-
-- **Plain text**: Human-friendly, easy for single hymns.
-- **JSON**: Machine-friendly, supports single or batch import/export.
-- All fields except `title` are optional in both formats.
-
----
-
-**For developers:**  
-- Update this file if the format changes.
-- See code for parsing/serialization logic.
-- Current model version: 2 (added songNumber field)
-
-This file will serve as a reference for users and developers. 
+**JSON Format Rules:**
+- All fields except `title` are optional
+- `songNumber` must be a positive integer if provided
+- `tags` must be an array of strings if provided
+- `lyrics` uses `\n` for line breaks
+- Empty strings and null values are treated the same
+- Whitespace is trimmed from all string fields 
