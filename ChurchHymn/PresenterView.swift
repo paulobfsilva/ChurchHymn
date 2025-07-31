@@ -85,16 +85,25 @@ struct PresenterView: View {
                     Spacer().frame(width: 40)
                     // Verse/Chorus bottom-right
                     if !presentationParts.isEmpty {
-                        Group {
-                            if let label = presentationParts[index].label {
-                                Text(label)
-                            } else {
-                                let verseNumber = presentationParts[0...index].filter { $0.label == nil }.count
-                                Text("Verse \(verseNumber)")
+                        HStack(spacing: 8) {
+                            Group {
+                                if let label = presentationParts[index].label {
+                                    Text(label)
+                                } else {
+                                    let verseNumber = presentationParts[0...index].filter { $0.label == nil }.count
+                                    Text("Verse \(verseNumber)")
+                                }
+                            }
+                            .font(.system(size: 15))
+                            .foregroundColor(.white)
+                            
+                            // Show end indicator if we're at the last part
+                            if index == presentationParts.count - 1 {
+                                Text("(End)")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(.yellow)
                             }
                         }
-                        .font(.system(size: 15))
-                        .foregroundColor(.white)
                     }
                 }
                 .padding([.bottom, .horizontal], 20)
@@ -108,11 +117,17 @@ struct PresenterView: View {
     }
     
     private func advance() {
-        index = (index + 1) % presentationParts.count
+        // Only advance if we're not at the last part
+        if index < presentationParts.count - 1 {
+            index += 1
+        }
     }
     
     private func retreat() {
-        index = (index - 1 + presentationParts.count) % presentationParts.count
+        // Only retreat if we're not at the first part
+        if index > 0 {
+            index -= 1
+        }
     }
     
     private func startMonitor() {
