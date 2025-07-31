@@ -178,15 +178,29 @@ struct ContentView: View {
         // 3. Build a new window
         let window = NSWindow(contentViewController: hostingController)
         window.title = hymn.title
-        // Enable macOS full‑screen capability
-        window.collectionBehavior.insert(.fullScreenPrimary)
-        // Optionally remove title bar & controls:
+        
+        // Get available screens
+        let screens = NSScreen.screens
+        let targetScreen = screens.count > 1 ? screens[1] : screens[0]
+        
+        // Configure window
         window.styleMask.remove(.titled)
         window.standardWindowButton(.closeButton)?.isHidden = true
-        // 4. Toggle full screen
-        window.toggleFullScreen(nil)
-        // 5. Show it
+        window.collectionBehavior = [.fullScreenPrimary]
+        
+        // Position on target screen
+        let screenFrame = targetScreen.frame
+        window.setFrame(screenFrame, display: true)
+        
+        // Make window key and visible
         window.makeKeyAndOrderFront(nil)
+        
+        // Enter full screen mode
+        if window.styleMask.contains(.fullScreen) {
+            window.toggleFullScreen(nil)
+        } else {
+            window.toggleFullScreen(nil)
+        }
     }
     
     private func deleteHymn() {
