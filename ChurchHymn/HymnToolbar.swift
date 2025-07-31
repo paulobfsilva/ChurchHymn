@@ -118,6 +118,32 @@ struct HymnToolbar {
                 .disabled(isMultiSelectMode ? selectedHymnsForDelete.isEmpty : selected == nil)
                 .help(isMultiSelectMode ? "Delete selected hymns" : "Delete selected hymn")
                 .keyboardShortcut(.delete, modifiers: [.command])
+                
+                // Select All button - only visible in multi-select mode
+                if isMultiSelectMode {
+                    let allHymnIds = Set(hymns.map { $0.id })
+                    let isAllSelected = !hymns.isEmpty && selectedHymnsForDelete == allHymnIds
+                    
+                    Button(action: {
+                        if isAllSelected {
+                            selectedHymnsForDelete.removeAll()
+                        } else {
+                            selectedHymnsForDelete = allHymnIds
+                        }
+                    }) {
+                        VStack(spacing: 2) {
+                            Image(systemName: isAllSelected ? "checkmark.circle.fill" : "checkmark.circle")
+                                .font(.title2)
+                                .foregroundColor(.blue)
+                            Text(isAllSelected ? "Deselect All" : "Select All")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .disabled(hymns.isEmpty)
+                    .help(isAllSelected ? "Deselect all hymns" : "Select all hymns")
+                    .keyboardShortcut("a", modifiers: [.command])
+                }
             }
             
             ToolbarItemGroup(placement: .primaryAction) {
@@ -160,6 +186,21 @@ struct HymnToolbar {
                     }
                     .foregroundColor(isMultiSelectMode ? .orange : .blue)
                     .keyboardShortcut("m", modifiers: [.command])
+                    
+                    if isMultiSelectMode {
+                        Divider()
+                        Button("Select All") {
+                            selectedHymnsForDelete = Set(hymns.map { $0.id })
+                        }
+                        .disabled(hymns.isEmpty)
+                        .keyboardShortcut("a", modifiers: [.command])
+                        
+                        Button("Deselect All") {
+                            selectedHymnsForDelete.removeAll()
+                        }
+                        .disabled(selectedHymnsForDelete.isEmpty)
+                        .keyboardShortcut("d", modifiers: [.command])
+                    }
                 }
             }
         }
