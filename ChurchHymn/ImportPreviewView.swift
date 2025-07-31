@@ -29,7 +29,7 @@ struct ImportPreviewHymn: Identifiable {
     }
 }
 
-struct ImportPreview {
+struct ImportPreview: @unchecked Sendable {
     let hymns: [ImportPreviewHymn]
     let duplicates: [ImportPreviewHymn]
     let errors: [String]

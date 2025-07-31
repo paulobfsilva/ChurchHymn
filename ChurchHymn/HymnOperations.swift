@@ -3,7 +3,7 @@ import SwiftData
 import UniformTypeIdentifiers
 import Foundation
 
-class HymnOperations: ObservableObject {
+class HymnOperations: ObservableObject, @unchecked Sendable {
     @Published var isImporting = false
     @Published var isExporting = false
     @Published var importProgress: Double = 0.0
@@ -74,7 +74,7 @@ class HymnOperations: ObservableObject {
                 // Create preview data
                 var validHymns: [ImportPreviewHymn] = []
                 var duplicateHymns: [ImportPreviewHymn] = []
-                var errors: [String] = []
+                let errors: [String] = []
                 
                 // Check for duplicate titles
                 if let existingHymn = hymns.first(where: { $0.title.lowercased() == hymn.title.lowercased() }) {

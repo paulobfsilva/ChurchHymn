@@ -86,7 +86,7 @@ struct StreamingProgressOverlay: View {
                 }
                 
                 // Memory usage indicator
-                if let progress = progress {
+                if progress != nil {
                     HStack {
                         Image(systemName: "memorychip")
                             .foregroundColor(.orange)
