@@ -9,6 +9,8 @@ import AppKit
 
 struct PresenterView: View {
     var hymn: Hymn
+    var onIndexChange: (Int) -> Void
+    var onDismiss: () -> Void
     @State private var index: Int = 0
     @State private var monitor: Any?
     @Environment(\.dismiss) private var dismiss
@@ -99,9 +101,10 @@ struct PresenterView: View {
                             
                             // Show end indicator if we're at the last part
                             if index == presentationParts.count - 1 {
-                                Text("(End)")
+                                Image(systemName: "arrow.up.circle.fill")
                                     .font(.system(size: 15))
-                                    .foregroundColor(.yellow)
+                                    .foregroundColor(.white.opacity(0.6))
+                                    .symbolEffect(.pulse)
                             }
                         }
                     }
@@ -110,8 +113,17 @@ struct PresenterView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
-            .onAppear(perform: startMonitor)
-            .onDisappear(perform: stopMonitor)
+            .onAppear {
+                startMonitor()
+                onIndexChange(index)
+            }
+            .onDisappear {
+                stopMonitor()
+                onDismiss()
+            }
+            .onChange(of: index) { _, newIndex in
+                onIndexChange(newIndex)
+            }
         }
         .ignoresSafeArea()
     }

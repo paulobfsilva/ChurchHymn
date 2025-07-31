@@ -13,6 +13,8 @@ struct ContentView: View {
     @State private var newHymn: Hymn? = nil
     @State private var showingEdit = false
     @State private var editHymn: Hymn? = nil
+    @State private var presentedHymnIndex: Int? = nil
+    @State private var isPresenting = false
     
     // Import/Export state
     @State private var exportType: ExportType?
@@ -130,11 +132,17 @@ struct ContentView: View {
             )
 
         } detail: {
-            DetailView(
-                selected: selected,
-                isMultiSelectMode: isMultiSelectMode,
-                selectedHymnsForDelete: selectedHymnsForDelete
-            )
+            if isMultiSelectMode {
+                MultiSelectDetailView(selectedHymnsForDelete: selectedHymnsForDelete)
+            } else if let hymn = selected {
+                DetailView(
+                    hymn: hymn,
+                    currentPresentationIndex: presentedHymnIndex,
+                    isPresenting: isPresenting
+                )
+            } else {
+                EmptyDetailView()
+            }
         }
         .contentViewModifiers(
             hymns: hymns,
@@ -172,7 +180,18 @@ struct ContentView: View {
     
     private func present(_ hymn: Hymn) {
         // 1. Create the SwiftUI view
-        let presenterView = PresenterView(hymn: hymn)
+        let presenterView = PresenterView(
+            hymn: hymn,
+            onIndexChange: { index in
+                presentedHymnIndex = index
+            },
+            onDismiss: {
+                presentedHymnIndex = nil
+                isPresenting = false
+            }
+        )
+        isPresenting = true
+        
         // 2. Host it in AppKit
         let hostingController = NSHostingController(rootView: presenterView)
         // 3. Build a new window

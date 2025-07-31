@@ -1,17 +1,52 @@
 import SwiftUI
 
 struct DetailView: View {
-    let selected: Hymn?
-    let isMultiSelectMode: Bool
-    let selectedHymnsForDelete: Set<UUID>
+    let hymn: Hymn
+    var currentPresentationIndex: Int?
+    var isPresenting: Bool
     
     var body: some View {
-        if isMultiSelectMode {
-            MultiSelectDetailView(selectedHymnsForDelete: selectedHymnsForDelete)
-        } else if let hymn = selected {
-            LyricsDetailView(hymn: hymn)
-        } else {
-            EmptyDetailView()
+        VStack(spacing: 0) {
+            // Title and metadata
+            VStack(alignment: .leading, spacing: 8) {
+                Text(hymn.title)
+                    .font(.title)
+                    .padding(.bottom, 4)
+                
+                HStack {
+                    if let number = hymn.songNumber {
+                        Text("#\(number)")
+                            .foregroundColor(.secondary)
+                    }
+                    if let key = hymn.musicalKey {
+                        Text("Key: \(key)")
+                            .foregroundColor(.secondary)
+                    }
+                    if let author = hymn.author {
+                        Text("By: \(author)")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .font(.subheadline)
+                
+                if let copyright = hymn.copyright {
+                    Text(copyright)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(NSColor.controlBackgroundColor))
+            
+            Divider()
+            
+            // Lyrics with highlighting
+            LyricsDetailView(
+                hymn: hymn,
+                currentPresentationIndex: currentPresentationIndex,
+                isPresenting: isPresenting
+            )
         }
     }
 }
