@@ -101,6 +101,18 @@ struct HymnListView: View {
                     }
                 }
             }
+            
+            // Footer with total count
+            HStack {
+                Spacer()
+                Text("\(filteredHymns.count) of \(hymns.count) hymns")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                Spacer()
+            }
+            .background(Color(NSColor.controlBackgroundColor))
         }
         .frame(minWidth: 200)
     }
