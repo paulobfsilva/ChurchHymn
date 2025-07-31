@@ -117,15 +117,43 @@ struct PresenterView: View {
     
     private func startMonitor() {
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Get the character if available
+            let char = event.characters?.lowercased().first
+            
             switch event.keyCode {
-            case 49, 36, 124, 125: advance() // Space, Return, Right, Down
-            case 123, 126: retreat() // Left, Up
+            case 49, 36, 124, 125: // Space, Return, Right, Down
+                advance()
+            case 123, 126: // Left, Up
+                retreat()
             case 53: // ESC key
                 DispatchQueue.main.async {
                     dismiss()
                 }
                 return nil
-            default: return event
+            default:
+                // Handle number keys (1-9) and 'c' for chorus
+                if let character = char {
+                    if character == "c" {
+                        // Find and show chorus
+                        if let chorusIndex = presentationParts.firstIndex(where: { $0.label?.lowercased().contains("chorus") ?? false }) {
+                            index = chorusIndex
+                            return nil
+                        }
+                    } else if let number = Int(String(character)) {
+                        // Find and show the requested verse
+                        var verseCount = 0
+                        for (i, part) in presentationParts.enumerated() {
+                            if part.label == nil {
+                                verseCount += 1
+                                if verseCount == number {
+                                    index = i
+                                    return nil
+                                }
+                            }
+                        }
+                    }
+                }
+                return event
             }
             return nil
         }
