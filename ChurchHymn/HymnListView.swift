@@ -15,38 +15,62 @@ struct HymnListView: View {
     let onPresent: (Hymn) -> Void
     
     @State private var searchText = ""
+    @State private var sortOption: SortOption = .title
+    
+    enum SortOption: String, CaseIterable, Identifiable {
+        case title = "Title"
+        case number = "Number"
+        case key = "Key"
+        case author = "Author"
+        
+        var id: String { self.rawValue }
+    }
     
     var filteredHymns: [Hymn] {
+        let filtered: [Hymn]
         if searchText.isEmpty {
-            return hymns
+            filtered = hymns
+        } else {
+            filtered = hymns.filter { hymn in
+                let searchQuery = searchText.lowercased()
+                // Search in title
+                if hymn.title.lowercased().contains(searchQuery) {
+                    return true
+                }
+                // Search in song number if present
+                if let number = hymn.songNumber,
+                   String(number).contains(searchQuery) {
+                    return true
+                }
+                // Search in lyrics if present
+                if let lyrics = hymn.lyrics,
+                   lyrics.lowercased().contains(searchQuery) {
+                    return true
+                }
+                // Search in author if present
+                if let author = hymn.author,
+                   author.lowercased().contains(searchQuery) {
+                    return true
+                }
+                return false
+            }
         }
-        return hymns.filter { hymn in
-            let searchQuery = searchText.lowercased()
-            
-            // Search in title
-            if hymn.title.lowercased().contains(searchQuery) {
-                return true
+        // Sort based on selected option
+        switch sortOption {
+        case .title:
+            return filtered.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        case .number:
+            return filtered.sorted {
+                ($0.songNumber ?? Int.max) < ($1.songNumber ?? Int.max)
             }
-            
-            // Search in song number if present
-            if let number = hymn.songNumber,
-               String(number).contains(searchQuery) {
-                return true
+        case .key:
+            return filtered.sorted {
+                ($0.musicalKey ?? "").localizedCaseInsensitiveCompare($1.musicalKey ?? "") == .orderedAscending
             }
-            
-            // Search in lyrics if present
-            if let lyrics = hymn.lyrics,
-               lyrics.lowercased().contains(searchQuery) {
-                return true
+        case .author:
+            return filtered.sorted {
+                ($0.author ?? "").localizedCaseInsensitiveCompare($1.author ?? "") == .orderedAscending
             }
-            
-            // Search in author if present
-            if let author = hymn.author,
-               author.lowercased().contains(searchQuery) {
-                return true
-            }
-            
-            return false
         }
     }
     
@@ -57,7 +81,15 @@ struct HymnListView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(Color(NSColor.controlBackgroundColor))
-            
+            // Sorting options
+            Picker("Sort by", selection: $sortOption) {
+                ForEach(SortOption.allCases) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
             Divider()
             
             // Hymns list
