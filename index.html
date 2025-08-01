@@ -1,0 +1,65 @@
+<!-- index.html (Marketing URL) -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Church Hymn for macOS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen bg-gray-50 text-gray-800 flex flex-col">
+    <!-- Hero -->
+    <header class="bg-white shadow">
+      <div class="max-w-5xl mx-auto py-12 px-6 text-center">
+        <h1 class="text-4xl font-bold mb-4">Church Hymn</h1>
+        <p class="text-xl mb-6">Project hymns effortlessly. Search, sort, and present lyrics in a single click—built exclusively for macOS.</p>
+        <!-- Placeholder for App Store badge -->
+        <a href="#app-store-link" class="inline-block">
+          <img src="app-store-badge.png" alt="Download on the Mac App Store" class="h-12" />
+        </a>
+      </div>
+    </header>
+
+    <!-- Features -->
+    <section class="flex-1">
+      <div class="max-w-5xl mx-auto py-16 px-6 grid gap-12 md:grid-cols-2">
+        <div>
+          <h2 class="text-2xl font-semibold mb-4">Instant Library</h2>
+          <p>Live search, alphabetical index, and rich metadata keep every hymn at your fingertips.</p>
+        </div>
+        <div>
+          <h2 class="text-2xl font-semibold mb-4">One‑Click Projection</h2>
+          <p>Launch a distraction‑free, full‑screen lyric display optimised for video projectors.</p>
+        </div>
+        <div>
+          <h2 class="text-2xl font-semibold mb-4">Smart Import & Export</h2>
+          <p>Bring in or share hymns as text or JSON—with duplicate detection and batch handling.</p>
+        </div>
+        <div>
+          <h2 class="text-2xl font-semibold mb-4">Made for macOS</h2>
+          <p>Modern UI, SwiftData persistence, keyboard shortcuts, and Apple Silicon performance.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Screenshots -->
+    <section class="bg-white py-16">
+      <div class="max-w-5xl mx-auto px-6">
+        <h2 class="text-2xl font-semibold text-center mb-8">Screenshots</h2>
+        <div class="grid gap-6 md:grid-cols-3">
+          <img src="screenshot-library.png" alt="Library view" class="rounded-xl shadow" />
+          <img src="screenshot-editor.png" alt="Hymn editor" class="rounded-xl shadow" />
+          <img src="screenshot-presentation.png" alt="Presentation mode" class="rounded-xl shadow" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-100 py-8 text-center text-sm">
+      <p>&copy; <span id="yr"></span> Church Hymn. All rights reserved.</p>
+      <p class="mt-2"><a href="support.html" class="underline">Support</a></p>
+    </footer>
+
+    <script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
+  </body>
+</html>
