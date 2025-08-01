@@ -1,0 +1,63 @@
+<!-- support.html (Support URL) -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Church Hymn Support</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen bg-gray-50 text-gray-800 flex flex-col">
+    <header class="bg-white shadow">
+      <div class="max-w-3xl mx-auto py-10 px-6 text-center">
+        <h1 class="text-3xl font-bold mb-3">Church Hymn Support</h1>
+        <p class="text-lg">Need help? You’re in the right place.</p>
+      </div>
+    </header>
+
+    <main class="flex-1 max-w-3xl mx-auto py-12 px-6 space-y-12">
+      <!-- Contact -->
+      <section>
+        <h2 class="text-2xl font-semibold mb-4">Contact Us</h2>
+        <p>Email: <a href="mailto:support@churchhymn.app" class="underline">support@churchhymn.app</a></p>
+        <p class="text-sm mt-2">Typical response time: within 24 hours (Mon–Fri).</p>
+      </section>
+
+      <!-- FAQ -->
+      <section>
+        <h2 class="text-2xl font-semibold mb-4">Frequently Asked Questions</h2>
+        <div class="space-y-6">
+          <details class="bg-white p-4 rounded-xl shadow">
+            <summary class="font-medium cursor-pointer">How do I import my existing hymn list?</summary>
+            <p class="mt-2">Choose <strong>File › Import</strong> and select either a plain‑text (.txt) or JSON (.json) file. A preview lets you pick which hymns to keep and resolves duplicates automatically.</p>
+          </details>
+          <details class="bg-white p-4 rounded-xl shadow">
+            <summary class="font-medium cursor-pointer">Can I project verses and chorus separately?</summary>
+            <p class="mt-2">Yes. Tag each section in the editor and Church Hymn will split slides at the right points during presentation.</p>
+          </details>
+          <details class="bg-white p-4 rounded-xl shadow">
+            <summary class="font-medium cursor-pointer">Does Church Hymn work offline?</summary>
+            <p class="mt-2">Absolutely. All data is stored locally on your Mac, so you can use the app without an internet connection.</p>
+          </details>
+        </div>
+      </section>
+
+      <!-- Release Notes -->
+      <section>
+        <h2 class="text-2xl font-semibold mb-4">Latest Version</h2>
+        <p><strong>Version 1.0</strong> – August 2025</p>
+        <ul class="list-disc list-inside mt-2 space-y-1">
+          <li>Initial public release.</li>
+        </ul>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-100 py-8 text-center text-sm">
+      <p>&copy; <span id="yr"></span> Church Hymn. All rights reserved.</p>
+      <p class="mt-2"><a href="index.html" class="underline">Back to Marketing Page</a></p>
+    </footer>
+
+    <script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
+  </body>
+</html>
