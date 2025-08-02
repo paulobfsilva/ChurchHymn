@@ -69,6 +69,7 @@ struct HymnEditView: View {
                     .fontWeight(.bold)
                 
                 TextEditor(text: $hymn.lyrics.unwrap(or: ""))
+                    .font(.system(.body, design: .monospaced))
                     .frame(minHeight: 200, maxHeight: .infinity)
                     .padding(8)
                     .background(Color(.textBackgroundColor))
