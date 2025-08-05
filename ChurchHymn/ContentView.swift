@@ -6,6 +6,7 @@ import Foundation
 
 struct ContentView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.openWindow) private var openWindow
     @Query(sort: \Hymn.title, order: .forward) private var hymns: [Hymn]
     
     // Core state
@@ -86,10 +87,12 @@ struct ContentView: View {
                     showingBatchDeleteConfirmation: $showingBatchDeleteConfirmation,
                     context: context,
                     onPresent: present
-                ).createToolbar()
+                ).createToolbar(
+                    openWindow: openWindow
+                )
             }
             .fileImporter(
-                isPresented: Binding(get: { importType != nil }, set: { if !$0 { 
+                isPresented: Binding(get: { importType != nil }, set: { if !$0 {
                     importType = nil
                 } }),
                 allowedContentTypes: importType == .auto ? [UTType.json, UTType.plainText] : (importType == .json ? [UTType.json] : [UTType.plainText]),
@@ -99,7 +102,7 @@ struct ContentView: View {
                 handleImportResult(result, importType: importTypeToUse)
             }
             .fileExporter(
-                isPresented: Binding(get: { exportType != nil }, set: { if !$0 { 
+                isPresented: Binding(get: { exportType != nil }, set: { if !$0 {
                     exportType = nil
                     cleanupAfterExport()
                 } }),
@@ -143,6 +146,9 @@ struct ContentView: View {
             } else {
                 EmptyDetailView()
             }
+        }
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            handleDragAndDrop(providers: providers)
         }
         .contentViewModifiers(
             hymns: hymns,
@@ -300,6 +306,37 @@ struct ContentView: View {
     }
     
     // MARK: - Import/Export Handlers
+    
+    private func handleDragAndDrop(providers: [NSItemProvider]) -> Bool {
+        let group = DispatchGroup()
+        var fileURLs: [URL] = []
+        
+        for provider in providers {
+            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                group.enter()
+                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
+                    defer { group.leave() }
+                    
+                    if let data = item as? Data,
+                       let url = URL(dataRepresentation: data, relativeTo: nil) {
+                        
+                        let fileExtension = url.pathExtension.lowercased()
+                        if fileExtension == "txt" || fileExtension == "json" {
+                            fileURLs.append(url)
+                        }
+                    }
+                }
+            }
+        }
+        
+        group.notify(queue: .main) {
+            if !fileURLs.isEmpty {
+                self.handleImportResult(.success(fileURLs), importType: .auto)
+            }
+        }
+        
+        return !fileURLs.isEmpty
+    }
     
     private func handleImportResult(_ result: Result<[URL], Error>, importType: ImportType?) {
         print("DEBUG: importType parameter = \(String(describing: importType))")

@@ -18,5 +18,15 @@ struct ChurchHymnApp: App {
             ContentView()
         }
         .modelContainer(for: [Hymn.self])
+        
+        // ➊ Help window
+        WindowGroup("Import Help", id: "importHelp") {
+            ImportHelpView()
+        }
+        .defaultSize(width: 540, height: 640)
+        .windowResizability(.contentSize)
+        .commands {
+            HelpCommands()
+        }
     }
 }

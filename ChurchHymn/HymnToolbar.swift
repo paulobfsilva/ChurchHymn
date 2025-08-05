@@ -19,7 +19,7 @@ struct HymnToolbar {
     let context: ModelContext
     let onPresent: (Hymn) -> Void
     
-    func createToolbar() -> some ToolbarContent {
+    func createToolbar(openWindow: OpenWindowAction) -> some ToolbarContent {
         Group {
             ToolbarItemGroup(placement: .navigation) {
                 // Play button - prominent placement
@@ -147,6 +147,19 @@ struct HymnToolbar {
             }
             
             ToolbarItemGroup(placement: .primaryAction) {
+                // Help icon – far right
+                Button {
+                    openWindow(id: "importHelp")   // must match the WindowGroup id above
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.title2)
+                    Text("Help")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .help("Show import-file help")
+                .keyboardShortcut("?", modifiers: [.command])
+                
                 // Export Menu
                 Menu("Export") {
                     Button("Export Selected") { 
