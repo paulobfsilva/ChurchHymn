@@ -167,7 +167,7 @@ extension Hymn {
                     author = authorValue.isEmpty ? nil : authorValue
                     print("Found author: \(author ?? "nil")")
                 }
-                else if let copyrightValue = processMetadata("#Copyright:", 10) { 
+                else if let copyrightValue = processMetadata("#Copyright:", 11) { 
                     copyright = copyrightValue.isEmpty ? nil : copyrightValue
                     print("Found copyright: \(copyright ?? "nil")")
                 }
