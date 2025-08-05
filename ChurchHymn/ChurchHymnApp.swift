@@ -26,7 +26,7 @@ struct ChurchHymnApp: App {
         .defaultSize(width: 540, height: 640)
         .windowResizability(.contentSize)
         .commands {
-            HelpCommands()
+            MainMenuCommands()
         }
     }
 }

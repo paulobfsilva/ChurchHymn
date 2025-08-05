@@ -179,10 +179,72 @@ struct ContentView: View {
         .onAppear {
             // Update operations context with the actual context
             operations.updateContext(context)
+            setupMenuActionHandling()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .menuAction)) { notification in
+            if let action = notification.object as? MenuAction {
+                handleMenuAction(action)
+            }
         }
     }
 
     // MARK: - Actions
+    
+    private func setupMenuActionHandling() {
+        // Menu actions are handled via NotificationCenter
+    }
+    
+    private func handleMenuAction(_ action: MenuAction) {
+        switch action {
+        case .addNewHymn:
+            addNewHymn()
+        case .importHymns:
+            importHymns()
+        case .editCurrentHymn:
+            editCurrentHymn()
+        case .exportSelected:
+            exportSelectedHymn()
+        case .exportMultiple:
+            exportMultipleHymns()
+        case .exportAll:
+            exportAllHymns()
+        }
+    }
+    
+    private func addNewHymn() {
+        let hymn = Hymn(title: "")
+        context.insert(hymn)
+        newHymn = hymn
+        selected = hymn
+        showingEdit = true
+    }
+    
+    private func importHymns() {
+        importType = .auto
+        currentImportType = .auto
+    }
+    
+    private func editCurrentHymn() {
+        if selected != nil {
+            showingEdit = true
+        }
+    }
+    
+    private func exportSelectedHymn() {
+        if let hymn = selected {
+            selectedHymnsForExport = [hymn.id]
+            showingExportSelection = true
+        }
+    }
+    
+    private func exportMultipleHymns() {
+        showingExportSelection = true
+    }
+    
+    private func exportAllHymns() {
+        selectedHymnsForExport = Set(hymns.map { $0.id })
+        showingExportSelection = true
+    }
     
     private func present(_ hymn: Hymn) {
         // 1. Create the SwiftUI view

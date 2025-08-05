@@ -6,7 +6,7 @@ struct HelpCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .help) {
             Button("Import Help") {
-                openWindow(id: "ImportHelpView")
+                openWindow(id: "importHelp")
             }
 
             Divider()

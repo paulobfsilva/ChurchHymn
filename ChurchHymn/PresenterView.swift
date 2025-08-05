@@ -34,16 +34,24 @@ struct PresenterView: View {
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: 24) {
-                // Title at top
-                Text(hymn.title)
-                    .font(.system(size: 25, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.top, 20)
+                // Title and Key at top
+                HStack(spacing: 20) {
+                    Text(hymn.title)
+                        .font(.system(size: 25, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    if let key = hymn.musicalKey, !key.isEmpty {
+                        Text("(\(key))")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding(.top, 20)
                 Spacer()
                 // Lyrics block
                 if !presentationParts.isEmpty {
                     Text(presentationParts[index].lines.joined(separator: "\n"))
-                        .font(.system(size: 80))
+                        .font(.system(size: 80, weight: .bold))
                         .minimumScaleFactor(0.1)
                         .multilineTextAlignment(.center)
                         .foregroundColor(.white)
@@ -51,7 +59,7 @@ struct PresenterView: View {
                 } else if let lyrics = hymn.lyrics, !lyrics.isEmpty {
                     // Fallback: show raw lyrics if parts parsing failed
                     Text(lyrics)
-                        .font(.system(size: 60))
+                        .font(.system(size: 60, weight: .bold))
                         .minimumScaleFactor(0.1)
                         .multilineTextAlignment(.center)
                         .foregroundColor(.white)
@@ -80,11 +88,6 @@ struct PresenterView: View {
                         .font(.system(size: 15))
                         .foregroundColor(.white)
                     Spacer()
-                    // Key bottom-center
-                    Text(hymn.musicalKey ?? "")
-                        .font(.system(size: 15))
-                        .foregroundColor(.white)
-                    Spacer().frame(width: 40)
                     // Verse/Chorus bottom-right
                     if !presentationParts.isEmpty {
                         HStack(spacing: 8) {
