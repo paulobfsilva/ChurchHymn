@@ -393,6 +393,10 @@ struct ContentView: View {
         
         group.notify(queue: .main) {
             if !fileURLs.isEmpty {
+                // For drag-and-drop, we need to ensure URLs have proper access
+                for url in fileURLs {
+                    _ = url.startAccessingSecurityScopedResource()
+                }
                 self.handleImportResult(.success(fileURLs), importType: .auto)
             }
         }
@@ -422,6 +426,14 @@ struct ContentView: View {
                 var allErrors: [String] = []
                 
                 for (_, url) in urls.enumerated() {
+                    // Start accessing security scoped resource for sandboxed app
+                    let accessing = url.startAccessingSecurityScopedResource()
+                    defer {
+                        if accessing {
+                            url.stopAccessingSecurityScopedResource()
+                        }
+                    }
+                    
                     // Auto-detect file type and size for intelligent import
                     let actualImportType = detectImportType(for: url, requestedType: importType)
                     
