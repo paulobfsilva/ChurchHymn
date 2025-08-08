@@ -1,6 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
+#if os(macOS)
 import AppKit
+#endif
 import SwiftData
 import Foundation
 
@@ -186,6 +188,22 @@ struct ContentView: View {
                 handleMenuAction(action)
             }
         }
+        #if !os(macOS)
+        .fullScreenCover(isPresented: $isPresenting) {
+            if let hymn = selected {
+                PresenterView(
+                    hymn: hymn,
+                    onIndexChange: { index in
+                        presentedHymnIndex = index
+                    },
+                    onDismiss: {
+                        presentedHymnIndex = nil
+                        isPresenting = false
+                    }
+                )
+            }
+        }
+        #endif
     }
 
     // MARK: - Actions
@@ -247,6 +265,7 @@ struct ContentView: View {
     }
     
     private func present(_ hymn: Hymn) {
+        #if os(macOS)
         // 1. Create the SwiftUI view
         let presenterView = PresenterView(
             hymn: hymn,
@@ -288,6 +307,11 @@ struct ContentView: View {
         } else {
             window.toggleFullScreen(nil)
         }
+        #else
+        // iOS/iPadOS presentation - use full screen cover
+        presentedHymnIndex = 0
+        isPresenting = true
+        #endif
     }
     
     private func deleteHymn() {

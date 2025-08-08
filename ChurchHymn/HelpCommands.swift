@@ -1,5 +1,6 @@
 import SwiftUI
 
+#if os(macOS)
 struct HelpCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
@@ -15,3 +16,4 @@ struct HelpCommands: Commands {
         }
     }
 }
+#endif

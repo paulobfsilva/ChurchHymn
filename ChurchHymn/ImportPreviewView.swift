@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(macOS)
 import AppKit
+#endif
 
 // MARK: - Import Preview
 struct ImportPreviewHymn: Identifiable {

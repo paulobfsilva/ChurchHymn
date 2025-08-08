@@ -25,6 +25,7 @@ extension Notification.Name {
 }
 
 // MARK: - Main Menu Commands
+#if os(macOS)
 struct MainMenuCommands: Commands {
     @Environment(\.openWindow) private var openWindow
     
@@ -84,3 +85,4 @@ struct MainMenuCommands: Commands {
         }
     }
 }
+#endif

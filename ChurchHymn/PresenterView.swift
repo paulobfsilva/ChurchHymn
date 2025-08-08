@@ -5,7 +5,9 @@
 //  Created by paulo on 20/05/2025.
 //
 import SwiftUI
+#if os(macOS)
 import AppKit
+#endif
 
 struct PresenterView: View {
     var hymn: Hymn
